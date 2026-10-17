@@ -1,0 +1,21 @@
+# One application service only. Select and authorize durable PostgreSQL separately.
+services:
+  - type: web
+    name: planificador-escolar
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: "off"
+    healthCheckPath: /
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: SERVER_FORWARD_HEADERS_STRATEGY
+        value: framework
+      - key: PLANNER_DATABASE_URL
+        sync: false
+      - key: PLANNER_DATABASE_USERNAME
+        sync: false
+      - key: PLANNER_DATABASE_PASSWORD
+        sync: false

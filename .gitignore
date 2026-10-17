@@ -1,0 +1,56 @@
+# Synced references and local agent/workflow records are never application source.
+/sources/
+/AGENTS.md
+/odd/
+/.agents/
+/.codex/
+
+# Generated code, dependency caches, local tools and test/runtime output.
+**/.tools/
+**/target/
+**/node_modules/
+**/dist/
+**/build/
+**/.cache/
+**/coverage/
+**/.vite/
+*.tsbuildinfo
+*.log
+*.class
+*.jar
+*.zip
+
+# Credentials, local environment and database/export artifacts.
+.env
+.env.*
+**/.env
+**/.env.*
+*.local
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.db
+*.db-*
+*.mv.db
+*.trace.db
+*.sqlite*
+*.sql.gz
+*.dump
+*.backup
+*.pdf
+*.xlsx
+*.xls
+*.png
+*.jpg
+*.jpeg
+
+# IDE and OS state.
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+Desktop.ini
