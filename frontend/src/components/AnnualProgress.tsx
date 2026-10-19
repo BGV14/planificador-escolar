@@ -60,21 +60,30 @@ export function AnnualProgress({
     let active = true;
     setLoading(true);
 
-    api
-      .get<AnnualProgressData>(
-        `/progress/annual?contextId=${encodeURIComponent(contextId)}`,
-      )
-      .then((res) => {
-        if (!active) return;
-        setData(res);
-      })
-      .catch((err) => {
-        if (!active) return;
-        setError(errorMessage(err));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    const fetchProgress = async () => {
+      try {
+        // Asegurar la inicialización del token CSRF mediante el cliente global
+        await api.ensureCsrf().catch(() => {
+          /* Continuar para permitir que el servidor responda si no requiere pre-fetch */
+        });
+        const res = await api.get<AnnualProgressData>(
+          `/progress/annual?contextId=${encodeURIComponent(contextId)}`,
+        );
+        if (active) {
+          setData(res);
+        }
+      } catch (err) {
+        if (active) {
+          setError(errorMessage(err));
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void fetchProgress();
 
     return () => {
       active = false;
@@ -87,27 +96,41 @@ export function AnnualProgress({
     setSearchQuery("");
   };
 
+  const handleReload = () => {
+    if (!contextId) return;
+    setLoading(true);
+    setError("");
+    // Si venció el token CSRF o la sesión, refrescar el token antes de reintentar
+    api
+      .refreshCsrf()
+      .catch(() => {})
+      .then(() =>
+        api.get<AnnualProgressData>(
+          `/progress/annual?contextId=${encodeURIComponent(contextId)}`,
+        ),
+      )
+      .then(setData)
+      .catch((err) => setError(errorMessage(err)))
+      .finally(() => setLoading(false));
+  };
+
   if (loading) {
     return <Loading />;
   }
 
   if (error) {
     return (
-      <ErrorNotice
-        message={error}
-        onReload={() => {
-          if (!contextId) return;
-          setLoading(true);
-          setError("");
-          api
-            .get<AnnualProgressData>(
-              `/progress/annual?contextId=${encodeURIComponent(contextId)}`,
-            )
-            .then(setData)
-            .catch((err) => setError(errorMessage(err)))
-            .finally(() => setLoading(false));
-        }}
-      />
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Avance anual de temas
+          </h2>
+          <p className="text-xs text-slate-500">
+            Consulta de avance curricular y estado de temas
+          </p>
+        </div>
+        <ErrorNotice message={error} onReload={handleReload} />
+      </div>
     );
   }
 

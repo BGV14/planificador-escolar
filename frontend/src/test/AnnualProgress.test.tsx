@@ -2,12 +2,21 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AnnualProgress } from "../components/AnnualProgress";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import type { AnnualProgressData } from "../lib/progressTypes";
 
 vi.mock("../lib/api", async () => ({
   ...(await vi.importActual("../lib/api")),
-  api: { get: vi.fn(), mutate: vi.fn() },
+  api: {
+    get: vi.fn(),
+    mutate: vi.fn(),
+    ensureCsrf: vi
+      .fn()
+      .mockResolvedValue({ token: "csrf-token", headerName: "X-CSRF-TOKEN" }),
+    refreshCsrf: vi
+      .fn()
+      .mockResolvedValue({ token: "csrf-token", headerName: "X-CSRF-TOKEN" }),
+  },
 }));
 
 const mockContextAData: AnnualProgressData = {
@@ -254,5 +263,31 @@ describe("AnnualProgress Component", () => {
     // Filters must be reset
     const newAreaSelect = screen.getByRole("combobox", { name: /filtrar por área/i });
     expect(newAreaSelect).toHaveValue("");
+  });
+
+  it("handles 401 error cleanly and displays session expiration alert without breaking UI", async () => {
+    vi.mocked(api.get).mockRejectedValueOnce(new ApiError(401, {}));
+    render(<AnnualProgress contextId="ctx-a" />);
+
+    expect(
+      await screen.findByText(/tu sesión terminó o las credenciales no son correctas/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("handles 403 error cleanly, displays permission alert, and refreshes CSRF on reload", async () => {
+    vi.mocked(api.get).mockRejectedValueOnce(new ApiError(403, {}));
+    render(<AnnualProgress contextId="ctx-a" />);
+
+    expect(
+      await screen.findByText(/no tienes permiso o venció el token de seguridad/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+
+    // Click "Recargar datos"
+    const reloadButton = screen.getByRole("button", { name: /recargar datos/i });
+    await userEvent.click(reloadButton);
+
+    expect(api.refreshCsrf).toHaveBeenCalled();
   });
 });

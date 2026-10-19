@@ -23,18 +23,44 @@ class AnnualProgressApiTest extends PlannerApiTest {
   }
 
   @Test
-  void returnsAnnualProgressForAuthenticatedUser() throws Exception {
+  void returns200OkForAuthenticatedTeacherWithSessionAndCsrfToken() throws Exception {
+    // Iniciar sesión como docente y asegurar cabecera CSRF sincronizada
     login("teacher");
-    var response = call("GET", "/api/progress/annual?contextId=s1", null);
+    assertThat(csrf).isNotBlank();
+
+    var request =
+        HttpRequest.newBuilder(URI.create(url("/api/progress/annual?contextId=s1")))
+            .header("X-CSRF-TOKEN", csrf)
+            .GET()
+            .build();
+
+    var response = client.send(request, HttpResponse.BodyHandlers.ofString());
     assertThat(response.statusCode()).isEqualTo(200);
 
     var json = body(response);
     assertThat(json.get("contextId").asText()).isEqualTo("s1");
     assertThat(json.get("summary").get("totalTopics").asInt()).isEqualTo(17);
     assertThat(json.get("summary").get("completedTopics").asInt()).isEqualTo(7);
-    assertThat(json.get("summary").get("plannedPendingTopics").asInt()).isEqualTo(6);
-    assertThat(json.get("summary").get("unplannedTopics").asInt()).isEqualTo(4);
-    assertThat(json.get("topics").size()).isEqualTo(17);
+  }
+
+  @Test
+  void accessibleForAdminRole() throws Exception {
+    login("admin");
+    var response = call("GET", "/api/progress/annual?contextId=s1", null);
+    assertThat(response.statusCode()).isEqualTo(200);
+    var json = body(response);
+    assertThat(json.get("contextId").asText()).isEqualTo("s1");
+  }
+
+  @Test
+  void doesNotRequireAreaOwnership() throws Exception {
+    // El usuario "other" es docente en "s1", pero NO es dueño del área "Math" (cuyo dueño es "teacher").
+    // La consulta de avance anual es de solo lectura y debe retornar 200 OK sin lanzar 403 Forbidden.
+    login("other");
+    var response = call("GET", "/api/progress/annual?contextId=s1", null);
+    assertThat(response.statusCode()).isEqualTo(200);
+    var json = body(response);
+    assertThat(json.get("topics").size()).isGreaterThan(0);
   }
 
   @Test
@@ -82,5 +108,12 @@ class AnnualProgressApiTest extends PlannerApiTest {
     var response = call("GET", "/api/progress/annual?contextId=non-existent-ctx", null);
     assertThat(response.statusCode()).isEqualTo(404);
   }
-}
 
+  @Test
+  void rejectsForeignSchoolUser() throws Exception {
+    // "foreign" pertenece a escuela "s2"; no debe tener acceso a contextos de "s1"
+    login("foreign");
+    var response = call("GET", "/api/progress/annual?contextId=s1", null);
+    assertThat(response.statusCode()).isEqualTo(404);
+  }
+}

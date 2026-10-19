@@ -42,3 +42,4 @@ export interface AnnualProgressData {
   areaSummaries: AnnualProgressAreaSummary[];
   topics: AnnualTopicItem[];
 }
+

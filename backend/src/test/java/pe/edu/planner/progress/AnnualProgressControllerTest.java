@@ -160,4 +160,47 @@ class AnnualProgressControllerTest {
         .perform(get("/api/progress/annual"))
         .andExpect(status().isBadRequest());
   }
+
+  @Test
+  void returns401WhenUserNotAuthenticated() throws Exception {
+    HandlerMethodArgumentResolver nullResolver =
+        new HandlerMethodArgumentResolver() {
+          @Override
+          public boolean supportsParameter(MethodParameter parameter) {
+            return parameter.hasParameterAnnotation(AuthenticationPrincipal.class)
+                || parameter.getParameterType().equals(PlannerPrincipal.class);
+          }
+
+          @Override
+          public Object resolveArgument(
+              MethodParameter parameter,
+              ModelAndViewContainer mavContainer,
+              NativeWebRequest webRequest,
+              WebDataBinderFactory binderFactory) {
+            return null;
+          }
+        };
+
+    var unauthMvc =
+        MockMvcBuilders.standaloneSetup(new AnnualProgressController(service))
+            .setControllerAdvice(new ApiErrors())
+            .setCustomArgumentResolvers(nullResolver)
+            .build();
+
+    unauthMvc
+        .perform(get("/api/progress/annual").param("contextId", "ctx-1"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.message").value("Authentication required"));
+  }
+
+  @Test
+  void returns403WhenRoleForbidden() throws Exception {
+    when(service.getAnnualProgress(any(), eq("ctx-1"), any(), any()))
+        .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied for role: GUEST"));
+
+    mockMvc
+        .perform(get("/api/progress/annual").param("contextId", "ctx-1"))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.message").value("Access denied for role: GUEST"));
+  }
 }

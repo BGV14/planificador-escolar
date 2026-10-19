@@ -26,11 +26,19 @@ public class AnnualProgressService {
 
   public AnnualProgressDto getAnnualProgress(
       PlannerPrincipal user, String contextId, String areaId, TopicAnnualStatus status) {
+    if (user == null) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required");
+    }
+    if (!Set.of("ADMIN", "TEACHER").contains(user.role())) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied for role: " + user.role());
+    }
     if (contextId == null || contextId.isBlank()) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Explicit contextId required");
     }
 
-    // Validar contexto académico para la escuela del usuario autenticado
+    // Validar contexto académico para la escuela del usuario autenticado.
+    // La lectura de avance anual es de solo lectura para todo el catálogo de la escuela;
+    // NO exige que el usuario sea "dueño/responsable del área".
     var rows =
         db.queryForList(
             "select * from academic_contexts where school_id=? and id=?",
