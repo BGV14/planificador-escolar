@@ -12,6 +12,7 @@ import {
   Download,
   RefreshCw,
   CheckCheck,
+  CheckCircle2,
   CalendarClock,
   TriangleAlert,
   Menu,
@@ -37,10 +38,12 @@ import { Settings } from "./components/Settings";
 import { EntityEditor, type Editor } from "./components/EntityEditor";
 import { ErrorNotice, Loading } from "./components/Feedback";
 import { AcademicContexts } from "./components/AcademicContexts";
-type View = "calendar" | "topics" | "imports" | "settings";
+import { AnnualProgress } from "./components/AnnualProgress";
+type View = "calendar" | "topics" | "progress" | "imports" | "settings";
 const navigation = [
   { id: "calendar", label: "Mi planificación", icon: CalendarDays },
   { id: "topics", label: "Banco de temas", icon: Layers3 },
+  { id: "progress", label: "Avance anual", icon: CheckCircle2 },
   { id: "imports", label: "Importaciones", icon: Upload },
   { id: "settings", label: "Escuela y horarios", icon: Settings2 },
 ] as const;
@@ -693,6 +696,17 @@ export default function App() {
                   onSession={editSession}
                   onNewSession={(t) => newSession(t)}
                   onNewTopic={() => setEditor({ kind: "topics" })}
+                />
+              )}
+              {view === "progress" && (
+                <AnnualProgress
+                  contextId={contextId}
+                  onSelectSession={(topicId) => {
+                    const session = data.sessions.find(
+                      (s) => s.topicId === topicId,
+                    );
+                    if (session) editSession(session);
+                  }}
                 />
               )}
               {view === "imports" && (
