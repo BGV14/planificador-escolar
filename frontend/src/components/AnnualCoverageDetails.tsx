@@ -1,5 +1,9 @@
 import { useId, useState } from "react";
+import { ListChecks } from "lucide-react";
 import type { AnnualCoverage, CoverageStatus } from "../lib/coverage";
+import { Empty } from "./Feedback";
+import { Card } from "./ui/card";
+import { Select } from "./ui/input";
 
 interface AnnualCoverageDetailsProps {
   coverage: AnnualCoverage;
@@ -11,6 +15,12 @@ const statusLabels: Record<CoverageStatus, string> = {
   completed: "Trabajado",
   planned: "Planificado",
   unplanned: "Sin planificar",
+};
+
+const statusBadges: Record<CoverageStatus, string> = {
+  completed: "success",
+  planned: "",
+  unplanned: "warning",
 };
 
 export function AnnualCoverageDetails(props: AnnualCoverageDetailsProps) {
@@ -42,82 +52,112 @@ function ContextDetails({
   );
 
   return (
-    <section aria-labelledby={`${id}-title`} className="space-y-3">
-      <h2 id={`${id}-title`} className="text-lg font-semibold">
-        Detalle del avance anual
-      </h2>
-      <p>{contextLabel}</p>
-      <div className="flex flex-wrap gap-3">
-        <label htmlFor={`${id}-area`}>
-          Área
-          <select
-            id={`${id}-area`}
-            value={selectedArea}
-            onChange={(event) => setAreaId(event.target.value)}
-            className="ml-2 rounded border p-2"
-          >
-            <option value="">Todas las áreas</option>
-            {coverage.areas.map(({ area }) => (
-              <option key={area.id} value={area.id}>
-                {area.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label htmlFor={`${id}-status`}>
-          Estado
-          <select
-            id={`${id}-status`}
-            value={status}
-            onChange={(event) =>
-              setStatus(event.target.value as CoverageStatus | "")
-            }
-            className="ml-2 rounded border p-2"
-          >
-            <option value="">Todos los estados</option>
-            {Object.entries(statusLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <p role="status">
-        {rows.length} de {coverage.totals.total} temas del catálogo anual
-      </p>
-      {coverage.totals.total === 0 ? (
-        <p>No hay temas en el catálogo anual.</p>
-      ) : rows.length === 0 ? (
-        <p>No hay temas que coincidan con los filtros.</p>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full text-left text-sm">
-            <caption className="p-3 text-left font-medium">
-              Detalle de temas del catálogo anual
-            </caption>
-            <thead>
-              <tr className="border-b">
-                {["Área", "Unidad", "Tema", "Estado"].map((label) => (
-                  <th key={label} scope="col" className="p-3">
-                    {label}
-                  </th>
+    <section aria-labelledby={`${id}-title`}>
+      <Card className="overflow-hidden">
+        <div className="section-heading flex-wrap">
+          <div>
+            <h2 id={`${id}-title`}>
+              <ListChecks size={17} />
+              Detalle del avance anual
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">{contextLabel}</p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <label
+              htmlFor={`${id}-area`}
+              className="grid gap-1 text-xs text-slate-500"
+            >
+              Área
+              <Select
+                id={`${id}-area`}
+                value={selectedArea}
+                onChange={(event) => setAreaId(event.target.value)}
+                className="w-auto min-w-40"
+              >
+                <option value="">Todas las áreas</option>
+                {coverage.areas.map(({ area }) => (
+                  <option key={area.id} value={area.id}>
+                    {area.name}
+                  </option>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ area, topic, status: topicStatus }) => (
-                <tr key={`${area.id}:${topic.id}`} className="border-b">
-                  <td className="p-3">{area.name}</td>
-                  <td className="p-3">{topic.unit}</td>
-                  <td className="p-3">{topic.name}</td>
-                  <td className="p-3">{statusLabels[topicStatus]}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </Select>
+            </label>
+            <label
+              htmlFor={`${id}-status`}
+              className="grid gap-1 text-xs text-slate-500"
+            >
+              Estado
+              <Select
+                id={`${id}-status`}
+                value={status}
+                onChange={(event) =>
+                  setStatus(event.target.value as CoverageStatus | "")
+                }
+                className="w-auto min-w-40"
+              >
+                <option value="">Todos los estados</option>
+                {Object.entries(statusLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
         </div>
-      )}
+        <p
+          role="status"
+          className="border-b border-slate-100 px-5 py-2.5 text-xs text-slate-500"
+        >
+          {rows.length} de {coverage.totals.total} temas del catálogo anual
+        </p>
+        {coverage.totals.total === 0 ? (
+          <Empty
+            title="No hay temas en el catálogo anual."
+            detail="Agrega temas al catálogo para ver su avance."
+          />
+        ) : rows.length === 0 ? (
+          <Empty
+            title="No hay temas que coincidan con los filtros."
+            detail="Cambia el área o el estado para ver más temas."
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="coverage-table coverage-details-table">
+              <caption className="sr-only">
+                Detalle de temas del catálogo anual
+              </caption>
+              <thead>
+                <tr>
+                  {["Área", "Unidad", "Tema", "Estado"].map((label) => (
+                    <th key={label} scope="col">
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ area, topic, status: topicStatus }) => (
+                  <tr key={`${area.id}:${topic.id}`}>
+                    <td className="text-slate-600">{area.name}</td>
+                    <td className="tabular-nums text-slate-500">
+                      {topic.unit}
+                    </td>
+                    <td className="coverage-topic font-medium text-slate-900">
+                      {topic.name}
+                    </td>
+                    <td>
+                      <span className={`badge ${statusBadges[topicStatus]}`}>
+                        {statusLabels[topicStatus]}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </section>
   );
 }
