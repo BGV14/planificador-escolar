@@ -37,9 +37,13 @@ import { Settings } from "./components/Settings";
 import { EntityEditor, type Editor } from "./components/EntityEditor";
 import { ErrorNotice, Loading } from "./components/Feedback";
 import { AcademicContexts } from "./components/AcademicContexts";
-type View = "calendar" | "topics" | "imports" | "settings";
+import { AnnualCoverageSummary } from "./components/AnnualCoverageSummary";
+import { AnnualCoverageDetails } from "./components/AnnualCoverageDetails";
+import { buildAnnualCoverage } from "./lib/coverage";
+type View = "calendar" | "annual" | "topics" | "imports" | "settings";
 const navigation = [
   { id: "calendar", label: "Mi planificación", icon: CalendarDays },
+  { id: "annual", label: "Avance anual", icon: CheckCheck },
   { id: "topics", label: "Banco de temas", icon: Layers3 },
   { id: "imports", label: "Importaciones", icon: Upload },
   { id: "settings", label: "Escuela y horarios", icon: Settings2 },
@@ -239,6 +243,8 @@ export default function App() {
         />
       </>
     );
+  const annualCoverage =
+    view === "annual" && data ? buildAnnualCoverage(data) : null;
   const selectedTopics =
     data?.topics.filter((t) => !areaId || t.areaId === areaId) ?? [];
   const topicIds = new Set(selectedTopics.map((t) => t.id));
@@ -367,20 +373,24 @@ export default function App() {
               <h1 className="page-title">
                 {view === "calendar"
                   ? "Planifica con propósito."
-                  : view === "topics"
-                    ? "Cada tema, un nuevo aprendizaje."
-                    : view === "imports"
-                      ? "Tu trabajo, siempre conectado."
-                      : "Un equipo, un mismo plan."}
+                  : view === "annual"
+                    ? "El aprendizaje, a lo largo del año."
+                    : view === "topics"
+                      ? "Cada tema, un nuevo aprendizaje."
+                      : view === "imports"
+                        ? "Tu trabajo, siempre conectado."
+                        : "Un equipo, un mismo plan."}
               </h1>
               <p className="mt-2 text-sm text-slate-500">
                 {view === "calendar"
                   ? "Organiza las sesiones de tu escuela y sigue el avance de cada área."
-                  : view === "topics"
-                    ? "Explora, organiza y programa los temas de tu catálogo."
-                    : view === "imports"
-                      ? "Revisa los cambios antes de incorporarlos al plan compartido."
-                      : "Administra responsables, horarios y fechas importantes."}
+                  : view === "annual"
+                    ? "Consulta el catálogo anual completo del plan seleccionado, sin filtros mensuales."
+                    : view === "topics"
+                      ? "Explora, organiza y programa los temas de tu catálogo."
+                      : view === "imports"
+                        ? "Revisa los cambios antes de incorporarlos al plan compartido."
+                        : "Administra responsables, horarios y fechas importantes."}
               </p>
             </div>
             <div className="flex gap-2">
@@ -457,7 +467,10 @@ export default function App() {
                   )}
                 </Card>
               )}
-              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div
+                style={view === "annual" ? { display: "none" } : undefined}
+                className="mb-6 flex flex-wrap items-center justify-between gap-3"
+              >
                 <div className="flex flex-wrap gap-3">
                   <Select
                     aria-label="Filtrar por área"
@@ -568,6 +581,19 @@ export default function App() {
                   </div>
                 </details>
               </div>
+              {view === "annual" && annualCoverage && context && (
+                <div className="space-y-6">
+                  <AnnualCoverageSummary
+                    coverage={annualCoverage}
+                    contextLabel={context.displayLabel}
+                  />
+                  <AnnualCoverageDetails
+                    coverage={annualCoverage}
+                    contextLabel={context.displayLabel}
+                    contextKey={`${user.id}:${context.id}`}
+                  />
+                </div>
+              )}
               {view === "calendar" && (
                 <>
                   <div className="stats-grid">

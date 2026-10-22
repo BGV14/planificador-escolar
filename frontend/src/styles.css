@@ -75,6 +75,47 @@ td:first-child {
 tbody tr:hover {
   background: #fcfdfd;
 }
+.coverage-table td:first-child {
+  min-width: 0;
+}
+.coverage-table tbody th,
+.coverage-table tfoot th {
+  border-top: 1px solid #f0f2f5;
+  background: transparent;
+  color: #1e293b;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  vertical-align: top;
+}
+.coverage-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.coverage-table tfoot th,
+.coverage-table tfoot td {
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-weight: 650;
+}
+.coverage-summary-table tbody th,
+.coverage-summary-table tfoot th {
+  min-width: 160px;
+}
+.coverage-progress {
+  min-width: 120px;
+}
+.coverage-details-table td:first-child {
+  min-width: 120px;
+}
+.coverage-topic {
+  min-width: 220px;
+}
+.coverage-stat-empty {
+  font-size: 18px;
+}
 .app-shell {
   display: flex;
   min-height: 100dvh;
