@@ -12,6 +12,7 @@ import {
   Download,
   RefreshCw,
   CheckCheck,
+  CheckCircle2,
   CalendarClock,
   TriangleAlert,
   Menu,
@@ -40,11 +41,19 @@ import { AcademicContexts } from "./components/AcademicContexts";
 import { AnnualCoverageSummary } from "./components/AnnualCoverageSummary";
 import { AnnualCoverageDetails } from "./components/AnnualCoverageDetails";
 import { buildAnnualCoverage } from "./lib/coverage";
-type View = "calendar" | "annual" | "topics" | "imports" | "settings";
+import { AnnualProgress } from "./components/AnnualProgress";
+type View =
+  | "calendar"
+  | "annual"
+  | "topics"
+  | "progress"
+  | "imports"
+  | "settings";
 const navigation = [
   { id: "calendar", label: "Mi planificación", icon: CalendarDays },
   { id: "annual", label: "Avance anual", icon: CheckCheck },
   { id: "topics", label: "Banco de temas", icon: Layers3 },
+  { id: "progress", label: "Temas del año", icon: CheckCircle2 },
   { id: "imports", label: "Importaciones", icon: Upload },
   { id: "settings", label: "Escuela y horarios", icon: Settings2 },
 ] as const;
@@ -719,6 +728,17 @@ export default function App() {
                   onSession={editSession}
                   onNewSession={(t) => newSession(t)}
                   onNewTopic={() => setEditor({ kind: "topics" })}
+                />
+              )}
+              {view === "progress" && (
+                <AnnualProgress
+                  contextId={contextId}
+                  onSelectSession={(topicId) => {
+                    const session = data.sessions.find(
+                      (s) => s.topicId === topicId,
+                    );
+                    if (session) editSession(session);
+                  }}
                 />
               )}
               {view === "imports" && (
