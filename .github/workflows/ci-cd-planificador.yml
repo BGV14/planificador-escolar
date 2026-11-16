@@ -1,0 +1,124 @@
+# ============================================================================
+# CI/CD Planificador escolar
+# ============================================================================
+# CI (push y pull_request a main):
+#   - Backend: Java 21 + Maven (pruebas unitarias e integración)
+#   - Frontend: Node 20 + npm (Prettier, Vitest, Vite build)
+# CD (Docker + Render): COMENTADO por ahora
+#   - No hay PostgreSQL externo ni secretos de Render configurados
+# ============================================================================
+name: CI/CD Planificador Escolar
+
+# Eventos que disparan el workflow:
+# - push: únicamente cuando se sube a la rama main
+# - pull_request: cuando se abre o actualiza un PR contra main
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Permisos mínimos requeridos:
+# - contents: leer el repositorio
+permissions:
+  contents: read
+
+jobs:
+  # =========================================================================
+  # BACKEND — Java 21 + Maven (Spring Boot 4.1.1)
+  # Ejecuta dependencias:go-offline, pruebas unitarias e integración.
+  # =========================================================================
+  backend:
+    name: Backend — Java 21 + Maven
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21 (Temurin) y Maven
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+
+      - name: Hacer mxnw ejecutable
+        working-directory: backend
+        run: chmod +x ./mvnw
+
+      - name: Pre-cargar dependencias de Maven (acelera el build)
+        working-directory: backend
+        run: ./mvnw -B -ntp dependency:go-offline
+
+      - name: Ejecutar pruebas de backend
+        working-directory: backend
+        run: ./mvnw -B -ntp verify
+
+  # =========================================================================
+  # FRONTEND — Node 20 + npm (React 19 + Vite)
+  # Ejecuta Prettier (formato), Vitest (pruebas) y Vite build.
+  # =========================================================================
+  frontend:
+    name: Frontend — Node 20 + Vitest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20 (LTS) y npm con caché
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ./frontend/package-lock.json
+
+      - name: Instalar dependencias del frontend
+        working-directory: frontend
+        run: npm ci
+
+      - name: Verificar formato con Prettier
+        working-directory: frontend
+        run: npm exec -- prettier --check 'src/**/*.{ts,tsx,css}' '*.json' '*.ts' index.html
+
+      - name: Ejecutar pruebas unitarias del frontend
+        working-directory: frontend
+        run: npm test -- --run
+
+      - name: Compilar el frontend
+        working-directory: frontend
+        run: npm run build
+
+  # # =========================================================================
+  # # DOCKER — Build de la imagen (COMENTADO POR AHORA)
+  # # Se necesita Docker instalado en el runner para ejecutar este job.
+  # # @TODO: Instalar Docker (docker/setup-buildx-action) y proceder.
+  # # =========================================================================
+  # docker:
+  #   name: Docker — Build de imagen
+  #   runs-on: ubuntu-latest
+  #   needs: [backend, frontend]
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Configurar Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
+  #
+  #     - name: Build de la imagen Docker
+  #       run: docker build -t planificador-escolar:latest .
+
+  # # =========================================================================
+  # # DESPLIEGUE A RENDER — (COMENTADO POR AHORA)
+  # # Requiere PostgreSQL externo y secretos de Render (RENDER_API_KEY,
+  # # RENDER_SERVICE_ID, variables PLANNER_DATABASE_*).
+  # # @TODO: Configurar Render, BD PostgreSQL y secretos.
+  # # =========================================================================
+  # deploy:
+  #   name: Deploy — Render
+  #   runs-on: ubuntu-latest
+  #   needs: docker
+  #   environment: production
+  #   steps:
+  #     - name: Desplegar a Render
+  #       run: |
+  #         curl -X POST   #           "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys"   #           -H "Authorization: Bearer *** secrets.RENDER_API_KEY }}"   #           -H "Content-Type: application/json"
