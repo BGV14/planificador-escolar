@@ -166,8 +166,12 @@ describe("AnnualProgress Component", () => {
     expect(screen.getByText("Geometría del Espacio")).toBeInTheDocument();
 
     // Verify badges for mutually exclusive states
-    expect(screen.getAllByText("Completado (Trabajado)").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Planificado pendiente").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Completado (Trabajado)").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Planificado pendiente").length).toBeGreaterThan(
+      0,
+    );
     expect(screen.getAllByText("No planificado").length).toBeGreaterThan(0);
   });
 
@@ -179,19 +183,25 @@ describe("AnnualProgress Component", () => {
     expect(screen.getByTestId("kpi-total-topics")).toHaveTextContent("5");
 
     // Filter by area: Comunicación (has 2 topics)
-    const areaSelect = screen.getByRole("combobox", { name: /filtrar por área/i });
+    const areaSelect = screen.getByRole("combobox", {
+      name: /filtrar por área/i,
+    });
     await userEvent.selectOptions(areaSelect, "area-com");
 
     expect(screen.getByText("Comprensión de Textos")).toBeInTheDocument();
     expect(screen.getByText("Gramática y Ortografía")).toBeInTheDocument();
-    expect(screen.queryByText("Conjuntos y Subconjuntos")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Conjuntos y Subconjuntos"),
+    ).not.toBeInTheDocument();
 
     // The total annual denominator MUST stay constant (5)
     expect(screen.getByTestId("kpi-total-topics")).toHaveTextContent("5");
     expect(screen.getByText(/mostrando 2 de 5 temas/i)).toBeInTheDocument();
 
     // Filter by status: PLANIFICADO_PENDIENTE (only Gramática y Ortografía in Comunicación)
-    const statusSelect = screen.getByRole("combobox", { name: /filtrar por estado/i });
+    const statusSelect = screen.getByRole("combobox", {
+      name: /filtrar por estado/i,
+    });
     await userEvent.selectOptions(statusSelect, "PLANIFICADO_PENDIENTE");
 
     expect(screen.getByText("Gramática y Ortografía")).toBeInTheDocument();
@@ -205,21 +215,29 @@ describe("AnnualProgress Component", () => {
     await screen.findByText("Conjuntos y Subconjuntos");
 
     // Filter by Comunicación + NO_PLANIFICADO (which has 0 topics)
-    const areaSelect = screen.getByRole("combobox", { name: /filtrar por área/i });
+    const areaSelect = screen.getByRole("combobox", {
+      name: /filtrar por área/i,
+    });
     await userEvent.selectOptions(areaSelect, "area-com");
 
-    const statusSelect = screen.getByRole("combobox", { name: /filtrar por estado/i });
+    const statusSelect = screen.getByRole("combobox", {
+      name: /filtrar por estado/i,
+    });
     await userEvent.selectOptions(statusSelect, "NO_PLANIFICADO");
 
     // Empty state should be visible
     expect(
-      screen.getByText(/no hay temas que coincidan con los filtros seleccionados/i),
+      screen.getByText(
+        /no hay temas que coincidan con los filtros seleccionados/i,
+      ),
     ).toBeInTheDocument();
     // Annual total denominator remains constant
     expect(screen.getByTestId("kpi-total-topics")).toHaveTextContent("5");
 
     // Click "Restablecer filtros"
-    const resetButton = screen.getByRole("button", { name: /restablecer filtros/i });
+    const resetButton = screen.getByRole("button", {
+      name: /restablecer filtros/i,
+    });
     await userEvent.click(resetButton);
 
     // Filters are cleared and all 5 topics reappear
@@ -233,17 +251,25 @@ describe("AnnualProgress Component", () => {
     await screen.findByText("Conjuntos y Subconjuntos");
 
     // Apply a filter
-    const areaSelect = screen.getByRole("combobox", { name: /filtrar por área/i });
+    const areaSelect = screen.getByRole("combobox", {
+      name: /filtrar por área/i,
+    });
     await userEvent.selectOptions(areaSelect, "area-math");
     expect(areaSelect).toHaveValue("area-math");
 
     // Open detail view for topic 1
-    const detailButton = screen.getByRole("button", { name: /ver detalle de conjuntos y subconjuntos/i });
+    const detailButton = screen.getByRole("button", {
+      name: /ver detalle de conjuntos y subconjuntos/i,
+    });
     await userEvent.click(detailButton);
 
     // Detail view is open
-    expect(screen.getByRole("dialog", { name: /detalle del tema/i })).toBeInTheDocument();
-    expect(within(screen.getByRole("dialog")).getByText("Marzo")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: /detalle del tema/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("dialog")).getByText("Marzo"),
+    ).toBeInTheDocument();
 
     // CRITERION 5: Switching contextId must reset filters and detail view, and never show old data
     rerender(<AnnualProgress contextId="ctx-b" />);
@@ -254,14 +280,18 @@ describe("AnnualProgress Component", () => {
     });
 
     // Previous context data must NOT be shown
-    expect(screen.queryByText("Conjuntos y Subconjuntos")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Conjuntos y Subconjuntos"),
+    ).not.toBeInTheDocument();
 
     // New context data is shown
     await screen.findByText("Método Científico");
     expect(screen.getByTestId("kpi-total-topics")).toHaveTextContent("1");
 
     // Filters must be reset
-    const newAreaSelect = screen.getByRole("combobox", { name: /filtrar por área/i });
+    const newAreaSelect = screen.getByRole("combobox", {
+      name: /filtrar por área/i,
+    });
     expect(newAreaSelect).toHaveValue("");
   });
 
@@ -270,7 +300,9 @@ describe("AnnualProgress Component", () => {
     render(<AnnualProgress contextId="ctx-a" />);
 
     expect(
-      await screen.findByText(/tu sesión terminó o las credenciales no son correctas/i),
+      await screen.findByText(
+        /tu sesión terminó o las credenciales no son correctas/i,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
@@ -280,12 +312,16 @@ describe("AnnualProgress Component", () => {
     render(<AnnualProgress contextId="ctx-a" />);
 
     expect(
-      await screen.findByText(/no tienes permiso o venció el token de seguridad/i),
+      await screen.findByText(
+        /no tienes permiso o venció el token de seguridad/i,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("alert")).toBeInTheDocument();
 
     // Click "Recargar datos"
-    const reloadButton = screen.getByRole("button", { name: /recargar datos/i });
+    const reloadButton = screen.getByRole("button", {
+      name: /recargar datos/i,
+    });
     await userEvent.click(reloadButton);
 
     expect(api.refreshCsrf).toHaveBeenCalled();

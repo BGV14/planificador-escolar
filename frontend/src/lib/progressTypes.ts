@@ -1,7 +1,5 @@
 export type TopicAnnualStatus =
-  | "COMPLETADO"
-  | "PLANIFICADO_PENDIENTE"
-  | "NO_PLANIFICADO";
+  "COMPLETADO" | "PLANIFICADO_PENDIENTE" | "NO_PLANIFICADO";
 
 export interface AnnualTopicItem {
   id: string;
@@ -42,4 +40,3 @@ export interface AnnualProgressData {
   areaSummaries: AnnualProgressAreaSummary[];
   topics: AnnualTopicItem[];
 }
-
