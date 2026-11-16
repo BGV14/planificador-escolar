@@ -43,12 +43,7 @@ import { AnnualCoverageDetails } from "./components/AnnualCoverageDetails";
 import { buildAnnualCoverage } from "./lib/coverage";
 import { AnnualProgress } from "./components/AnnualProgress";
 type View =
-  | "calendar"
-  | "annual"
-  | "topics"
-  | "progress"
-  | "imports"
-  | "settings";
+  "calendar" | "annual" | "topics" | "progress" | "imports" | "settings";
 const navigation = [
   { id: "calendar", label: "Mi planificación", icon: CalendarDays },
   { id: "annual", label: "Avance anual", icon: CheckCheck },

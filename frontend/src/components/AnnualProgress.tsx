@@ -41,7 +41,9 @@ export function AnnualProgress({
   const [searchQuery, setSearchQuery] = useState("");
 
   // Vista de detalle del tema
-  const [selectedTopic, setSelectedTopic] = useState<AnnualTopicItem | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<AnnualTopicItem | null>(
+    null,
+  );
 
   // CRITERION 5: Cambio de contexto académico
   // Al cambiar de contextId, se deben restablecer automáticamente los filtros activos
@@ -478,7 +480,9 @@ export function AnnualProgress({
                 <span className="text-xs font-medium text-slate-400 flex items-center gap-1">
                   <Info size={13} /> Estado anual
                 </span>
-                <div className="mt-2">{getStatusBadge(selectedTopic.status)}</div>
+                <div className="mt-2">
+                  {getStatusBadge(selectedTopic.status)}
+                </div>
               </div>
 
               <div className="rounded-lg border p-3">
