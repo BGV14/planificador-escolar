@@ -11,4 +11,3 @@ public record AnnualTopicItemDto(
     String exactDate,
     boolean catalogTopic
 ) {}
-

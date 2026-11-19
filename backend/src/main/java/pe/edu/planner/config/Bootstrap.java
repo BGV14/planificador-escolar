@@ -3,7 +3,6 @@ package pe.edu.planner.config;
 import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.*;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -11,6 +10,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import pe.edu.planner.planning.AcademicContext;
 
 @Component
+@org.springframework.core.annotation.Order(10)
 public class Bootstrap implements ApplicationRunner {
   private final JdbcTemplate db;
   private final PasswordEncoder passwords;
@@ -79,36 +79,6 @@ public class Bootstrap implements ApplicationRunner {
               schoolId,
               username,
               passwords.encode(password));
-          if (!level.equals("PRIMARY") || grade != 6) return;
-          try (var stream = new ClassPathResource("catalog/legacy-grade6.json").getInputStream()) {
-            var data = new com.fasterxml.jackson.databind.ObjectMapper().readTree(stream);
-            for (var course : data.properties()) {
-              String areaId = UUID.randomUUID().toString();
-              db.update(
-                  "insert into areas(id,school_id,context_id,name,owner_id,shared_edit)"
-                      + " values(?,?,?,?,?,false)",
-                  areaId,
-                  schoolId,
-                  schoolId,
-                  course.getKey(),
-                  userId);
-              for (var unit : course.getValue().properties())
-                for (int i = 0; i < unit.getValue().size(); i++) {
-                  db.update(
-                      "insert into topics(id,school_id,context_id,area_id,name,unit,legacy_id)"
-                          + " values(?,?,?,?,?,?,?)",
-                      UUID.randomUUID().toString(),
-                      schoolId,
-                      schoolId,
-                      areaId,
-                      unit.getValue().get(i).asText(),
-                      Integer.parseInt(unit.getKey()),
-                      course.getKey() + "|" + unit.getKey() + "|" + i);
-                }
-            }
-          } catch (java.io.IOException error) {
-            throw new IllegalStateException("Bundled public catalog unavailable", error);
-          }
         });
   }
 }

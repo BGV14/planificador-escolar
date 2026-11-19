@@ -23,7 +23,15 @@ class AnnualProgressServiceTest {
   private AnnualProgressService service;
 
   private final PlannerPrincipal user =
-      new PlannerPrincipal("u-1", "school-1", "teacher1", "hash", "TEACHER");
+      new PlannerPrincipal("u-1", "school-1", "admin1", "hash", "ADMIN");
+
+  @Test
+  void deniesTeachersBeforeReadingSyntheticData() {
+    var teacher = new PlannerPrincipal("u-1", "school-1", "teacher", "hash", "TEACHER");
+    assertThatThrownBy(() -> service.getAnnualProgress(teacher, "ctx", null, null))
+        .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+    verifyNoInteractions(db);
+  }
 
   @BeforeEach
   void setUp() {
@@ -69,6 +77,7 @@ class AnnualProgressServiceTest {
             "school_year", 2026,
             "level", "PRIMARY",
             "stage_kind", "GRADE",
+            "section", "B",
             "stage_value", 6,
             "revision", 1,
             "legacy_default", true);
@@ -81,6 +90,7 @@ class AnnualProgressServiceTest {
     assertThat(progress).isNotNull();
     assertThat(progress.contextId()).isEqualTo("ctx-2026");
     assertThat(progress.year()).isEqualTo(2026);
+    assertThat(progress.displayLabel()).contains("Sección B");
     assertThat(progress.topics()).isNotEmpty();
 
     // Verify Mutually Exclusive States: each topic has exactly one defined state
@@ -123,6 +133,7 @@ class AnnualProgressServiceTest {
             "school_year", 2026,
             "level", "PRIMARY",
             "stage_kind", "GRADE",
+            "section", "UNICA",
             "stage_value", 6,
             "revision", 1,
             "legacy_default", true);
@@ -154,4 +165,3 @@ class AnnualProgressServiceTest {
     assertThat(emptyFiltered.summary().totalTopics()).isEqualTo(constantTotalDenominator);
   }
 }
-

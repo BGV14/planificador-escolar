@@ -1,6 +1,7 @@
 # Allow only build inputs into the Docker context.
 **
 !Dockerfile
+!Dockerfile.vercel
 !frontend/
 !frontend/package.json
 !frontend/package-lock.json

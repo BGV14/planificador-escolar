@@ -17,6 +17,7 @@ import pe.edu.planner.legacy.*;
 public class PlannerService {
   private final JdbcTemplate db;
   private final PasswordEncoder passwords;
+  private final TeacherAccessPolicy access;
   private static final Set<String> TABLES =
       Set.of(
           "areas", "topics", "schedules", "planned_sessions", "calendar_blocks", "import_history");
@@ -24,6 +25,7 @@ public class PlannerService {
   public PlannerService(JdbcTemplate db, PasswordEncoder passwords) {
     this.db = db;
     this.passwords = passwords;
+    this.access = new TeacherAccessPolicy(db);
   }
 
   public record AreaInput(String name, String ownerId, boolean sharedEdit) {}
@@ -52,6 +54,8 @@ public class PlannerService {
         user.getUsername(),
         "role",
         user.role(),
+        "superadmin",
+        new pe.edu.planner.platform.PlatformAccessPolicy(db).allowed(user),
         "school",
         school(user, false));
   }
@@ -59,12 +63,24 @@ public class PlannerService {
   public List<Map<String, Object>> list(PlannerPrincipal user, String contextId, String table) {
     if (!TABLES.contains(table)) throw new IllegalArgumentException("Unknown resource");
     context(user, contextId, false);
+    readContext(user, contextId);
+    var visible = access.visibleAreaIds(user, contextId);
+    var topics = db.queryForList("select id,area_id from topics where school_id=? and context_id=?", user.schoolId(), contextId)
+        .stream().filter(t -> visible.contains(t.get("area_id"))).map(t -> t.get("id").toString()).collect(java.util.stream.Collectors.toSet());
     return db
         .queryForList(
             "select * from " + table + " where school_id=? and context_id=? order by id",
             user.schoolId(),
             contextId)
         .stream()
+        .filter(r -> switch (table) {
+          case "areas" -> visible.contains(r.get("id"));
+          case "topics", "schedules" -> visible.contains(r.get("area_id"));
+          case "planned_sessions" -> topics.contains(r.get("topic_id"));
+          case "calendar_blocks" -> r.get("area_id") == null || visible.contains(r.get("area_id"));
+          case "import_history" -> user.admin() || access.tutor(user, contextId) || user.id().equals(r.get("user_id"));
+          default -> false;
+        })
         .map(this::view)
         .toList();
   }
@@ -84,7 +100,7 @@ public class PlannerService {
         || input.password() == null
         || input.password().length() < 12
         || input.password().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72
-        || !Set.of("ADMIN", "TEACHER").contains(Objects.toString(input.role(), "")))
+        || !"TEACHER".equals(input.role()))
       bad("Invalid user or password (12+ characters, at most 72 UTF-8 bytes)");
     String id = id();
     db.update(
@@ -332,6 +348,7 @@ public class PlannerService {
 
   public Map<String, Object> plan(PlannerPrincipal user, String contextId) {
     var school = context(user, contextId, true);
+    readContext(user, contextId);
     var result = contextView(school);
     result.put("state", state(user, contextId));
     result.put("warnings", blockWarnings(user, contextId));
@@ -340,8 +357,10 @@ public class PlannerService {
 
   public Map<String, Object> preview(PlannerPrincipal user, String contextId, ImportInput input) {
     var school = context(user, contextId, true);
-    var result = importer(user, contextId, school).preview(input.json(), state(user, contextId));
+    readContext(user, contextId);
+    importer(user, contextId, school).preview(input.json(), new LegacyPlanState(Map.of(), Map.of(), Map.of(), Map.of()));
     authorizeImport(user, contextId, input.json());
+    var result = importer(user, contextId, school).preview(input.json(), state(user, contextId));
     return Map.of(
         "revision",
         school.get("revision"),
@@ -354,14 +373,16 @@ public class PlannerService {
 
   public Map<String, Object> confirm(PlannerPrincipal user, String contextId, ImportInput input) {
     var school = context(user, contextId, true);
+    readContext(user, contextId);
     if (input.revision() == null
         || ((Number) school.get("revision")).longValue() != input.revision())
       conflict("STALE_PREVIEW");
     if (!Boolean.TRUE.equals(input.acknowledgeIncomingWins()))
       bad("Explicit incoming-wins acknowledgment required");
     // Recompute against the locked current plan; never trust client preview state.
-    var result = importer(user, contextId, school).preview(input.json(), state(user, contextId));
+    importer(user, contextId, school).preview(input.json(), new LegacyPlanState(Map.of(), Map.of(), Map.of(), Map.of()));
     Set<String> incoming = authorizeImport(user, contextId, input.json());
+    var result = importer(user, contextId, school).preview(input.json(), state(user, contextId));
     for (var topic :
         db.queryForList(
             "select * from topics where school_id=? and context_id=? and legacy_id is not null",
@@ -461,6 +482,7 @@ public class PlannerService {
   }
 
   private LegacyPlanState state(PlannerPrincipal user, String contextId) {
+    var visible = access.visibleAreaIds(user, contextId);
     var maps =
         List.of(
             new HashMap<String, String>(),
@@ -469,12 +491,13 @@ public class PlannerService {
             new HashMap<String, String>());
     for (var row :
         db.queryForList(
-            "select t.legacy_id,p.assignment,p.status,p.exact_date,p.notes from planned_sessions p"
+            "select t.area_id,t.legacy_id,p.assignment,p.status,p.exact_date,p.notes from planned_sessions p"
                 + " join topics t on p.topic_id=t.id and p.school_id=t.school_id and"
                 + " p.context_id=t.context_id where p.school_id=? and p.context_id=? and"
                 + " t.legacy_id is not null",
             user.schoolId(),
             contextId)) {
+      if (!visible.contains(row.get("area_id"))) continue;
       var columns = List.of("assignment", "status", "exact_date", "notes");
       for (int i = 0; i < columns.size(); i++)
         if (row.get(columns.get(i)) != null)
@@ -527,9 +550,10 @@ public class PlannerService {
   }
 
   private List<Map<String, Object>> blockWarnings(PlannerPrincipal user, String contextId) {
+    var visible = access.visibleAreaIds(user, contextId);
     return db
         .queryForList(
-            "select p.id,p.exact_date,b.id as block_id,b.label from planned_sessions p join topics"
+            "select t.area_id,p.id,p.exact_date,b.id as block_id,b.label from planned_sessions p join topics"
                 + " t on p.school_id=t.school_id and p.context_id=t.context_id and p.topic_id=t.id"
                 + " join calendar_blocks b on b.school_id=p.school_id and b.context_id=p.context_id"
                 + " and (b.area_id is null or b.area_id=t.area_id) where p.school_id=? and"
@@ -539,6 +563,7 @@ public class PlannerService {
             user.schoolId(),
             contextId)
         .stream()
+        .filter(r -> visible.contains(r.get("area_id")))
         .map(this::view)
         .toList();
   }
@@ -624,15 +649,16 @@ public class PlannerService {
     return rows.getFirst().get("id").toString();
   }
 
-  public record ContextInput(int year, String level, int stageValue) {}
+  public record ContextInput(int year, String level, int stageValue, String section) {}
 
   public List<Map<String, Object>> contexts(PlannerPrincipal user) {
     return db
         .queryForList(
             "select * from academic_contexts where school_id=? order by"
-                + " school_year,level,stage_value",
+                + " school_year,level,stage_value,section",
             user.schoolId())
         .stream()
+        .filter(r -> access.canReadContext(user, r.get("id").toString()))
         .map(this::contextView)
         .toList();
   }
@@ -640,18 +666,19 @@ public class PlannerService {
   public Map<String, Object> createContext(PlannerPrincipal user, ContextInput input) {
     admin(user);
     school(user, true);
-    var spec = new AcademicContext(input.year(), input.level(), input.stageValue());
+    var spec = new AcademicContext(input.year(), input.level(), input.stageValue(), input.section());
     String id = id();
     db.update(
         "insert into"
-            + " academic_contexts(id,school_id,school_year,level,stage_kind,stage_value,revision,legacy_default)"
-            + " values(?,?,?,?,?,?,0,false)",
+            + " academic_contexts(id,school_id,school_year,level,stage_kind,stage_value,section,revision,legacy_default)"
+            + " values(?,?,?,?,?,?,?,0,false)",
         id,
         user.schoolId(),
         spec.year(),
         spec.level(),
         spec.stageKind(),
-        spec.stageValue());
+        spec.stageValue(),
+        spec.section());
     return contextView(context(user, id, false));
   }
 
@@ -667,11 +694,44 @@ public class PlannerService {
     return rows.getFirst();
   }
 
+  private void readContext(PlannerPrincipal user, String contextId) {
+    if (!access.canReadContext(user, contextId)) forbidden();
+  }
+
+  public record TutorInput(String userId) {}
+
+  public List<Map<String, Object>> tutors(PlannerPrincipal user, String contextId) {
+    admin(user);
+    context(user, contextId, false);
+    return db.queryForList("select t.user_id as id,u.username,u.role from classroom_tutors t join app_users u on t.school_id=u.school_id and t.user_id=u.id where t.school_id=? and t.context_id=? order by u.username", user.schoolId(), contextId);
+  }
+
+  public Map<String, Object> assignTutor(PlannerPrincipal user, String contextId, TutorInput input) {
+    admin(user);
+    context(user, contextId, true);
+    if (db.queryForObject("select count(*) from app_users where school_id=? and id=? and role='TEACHER'", Integer.class, user.schoolId(), input.userId()) != 1) missing();
+    if (db.queryForObject("select count(*) from classroom_tutors where school_id=? and context_id=? and user_id=?", Integer.class, user.schoolId(), contextId, input.userId()) == 0) {
+      db.update("insert into classroom_tutors(school_id,context_id,user_id) values(?,?,?)", user.schoolId(), contextId, input.userId());
+      bump(user, contextId);
+    }
+    return Map.of("userId", input.userId());
+  }
+
+  public void revokeTutor(PlannerPrincipal user, String contextId, String userId) {
+    admin(user);
+    context(user, contextId, true);
+    if (db.update("delete from classroom_tutors where school_id=? and context_id=? and user_id=?", user.schoolId(), contextId, userId) != 1) missing();
+    bump(user, contextId);
+  }
+
   private Map<String, Object> contextView(Map<String, Object> row) {
     var result = new LinkedHashMap<>(view(row));
     var spec =
         new AcademicContext(
-            year(row), row.get("level").toString(), ((Number) row.get("stage_value")).intValue());
+            year(row),
+            row.get("level").toString(),
+            ((Number) row.get("stage_value")).intValue(),
+            row.get("section").toString());
     result.remove("schoolYear");
     result.put("year", spec.year());
     result.put("displayLabel", spec.displayLabel());

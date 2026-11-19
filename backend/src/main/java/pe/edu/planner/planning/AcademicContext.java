@@ -5,8 +5,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 /** Stable API vocabulary; labels are presentation metadata, not tenant selectors. */
-public record AcademicContext(int year, String level, int stageValue) {
+public record AcademicContext(int year, String level, int stageValue, String section) {
+  public AcademicContext(int year, String level, int stageValue) {
+    this(year, level, stageValue, "UNICA");
+  }
+
   public AcademicContext {
+    section = section == null ? "UNICA" : section.trim().toUpperCase(Locale.ROOT);
+    if (!section.matches("[A-Z][A-Z0-9]{0,15}"))
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Invalid section: use 1–16 ASCII letters or digits, beginning with a letter");
     boolean valid =
         year >= 1900
             && year <= 2200
@@ -43,6 +52,7 @@ public record AcademicContext(int year, String level, int stageValue) {
           case "PRIMARY" -> "Primaria";
           default -> "Secundaria";
         };
-    return year + " \u00b7 " + label + " \u00b7 " + stage;
+    String sectionLabel = section.equals("UNICA") ? "Sección única" : "Sección " + section;
+    return year + " \u00b7 " + label + " \u00b7 " + stage + " \u00b7 " + sectionLabel;
   }
 }

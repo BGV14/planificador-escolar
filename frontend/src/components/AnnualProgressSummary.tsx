@@ -4,6 +4,7 @@ import type { AnnualCoverage, CoverageCounts } from "../lib/coverage";
 interface AnnualCoverageSummaryProps {
   coverage: AnnualCoverage;
   contextLabel: string;
+  tableOnly?: boolean;
 }
 
 const percentFormatter = new Intl.NumberFormat("es-PE", {
@@ -32,8 +33,53 @@ function CoverageCells({ counts }: { counts: CoverageCounts }) {
 export function AnnualProgressSummary({
   coverage,
   contextLabel,
+  tableOnly = false,
 }: AnnualCoverageSummaryProps) {
   const titleId = useId();
+  const table = (
+    <div className="table-scroll">
+      <table className="coverage-table coverage-summary-table">
+        <caption className="p-3 text-left font-medium">
+          Resumen anual por área
+        </caption>
+        <thead>
+          <tr className="border-b">
+            {[
+              "Área",
+              "Total de temas",
+              "Trabajados",
+              "Planificados",
+              "Sin planificar",
+              "Avance",
+            ].map((label) => (
+              <th key={label} scope="col" className="p-3">
+                {label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {coverage.areas.map((summary) => (
+            <tr key={summary.area.id} className="border-b">
+              <th scope="row" className="p-3 font-medium">
+                {summary.area.name}
+              </th>
+              <CoverageCells counts={summary} />
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="font-semibold">
+            <th scope="row" className="p-3">
+              Total anual
+            </th>
+            <CoverageCells counts={coverage.totals} />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+  if (tableOnly) return table;
   return (
     <section aria-labelledby={titleId} className="space-y-3">
       <h2 id={titleId} className="text-lg font-semibold">
@@ -47,47 +93,7 @@ export function AnnualProgressSummary({
       {coverage.areas.length === 0 && (
         <p>No hay áreas en este contexto académico.</p>
       )}
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-left text-sm">
-          <caption className="p-3 text-left font-medium">
-            Resumen anual por área
-          </caption>
-          <thead>
-            <tr className="border-b">
-              {[
-                "Área",
-                "Total de temas",
-                "Trabajados",
-                "Planificados",
-                "Sin planificar",
-                "Avance",
-              ].map((label) => (
-                <th key={label} scope="col" className="p-3">
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {coverage.areas.map((summary) => (
-              <tr key={summary.area.id} className="border-b">
-                <th scope="row" className="p-3 font-medium">
-                  {summary.area.name}
-                </th>
-                <CoverageCells counts={summary} />
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="font-semibold">
-              <th scope="row" className="p-3">
-                Total anual
-              </th>
-              <CoverageCells counts={coverage.totals} />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+      {table}
     </section>
   );
 }

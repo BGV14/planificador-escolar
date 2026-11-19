@@ -12,4 +12,3 @@ public record AnnualProgressDto(
     List<AnnualProgressAreaSummaryDto> areaSummaries,
     List<AnnualTopicItemDto> topics
 ) {}
-

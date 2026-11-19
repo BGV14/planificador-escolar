@@ -7,4 +7,3 @@ public record AnnualProgressSummaryDto(
     int unplannedTopics,
     double completionPercentage
 ) {}
-

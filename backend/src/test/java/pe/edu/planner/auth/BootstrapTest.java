@@ -28,19 +28,14 @@ class BootstrapTest {
   }
 
   @Test
-  void bootstrapsOnlyEmptyDatabaseWithPublicCatalogAndNeverResetsPasswords() {
+  void bootstrapsOnlyEmptyDatabaseWithoutCatalogAndNeverResetsPasswords() {
     clearDatabase();
     ReflectionTestUtils.setField(bootstrap, "username", "testbootstrap");
     ReflectionTestUtils.setField(bootstrap, "password", "synthetic-bootstrap-password");
     ReflectionTestUtils.setField(bootstrap, "school", "Synthetic school");
     bootstrap.run(new DefaultApplicationArguments());
-    assertThat(db.queryForObject("select count(*) from areas", Integer.class)).isEqualTo(4);
-    assertThat(db.queryForObject("select count(*) from topics", Integer.class)).isGreaterThan(100);
-    assertThat(
-            db.queryForObject(
-                "select count(*) from topics where legacy_id='Aritmética|1|0' and name='Conjuntos'",
-                Integer.class))
-        .isEqualTo(1);
+    assertThat(db.queryForObject("select count(*) from areas", Integer.class)).isZero();
+    assertThat(db.queryForObject("select count(*) from topics", Integer.class)).isZero();
     String hash =
         db.queryForObject(
             "select password_hash from app_users where username='testbootstrap'", String.class);
@@ -57,6 +52,7 @@ class BootstrapTest {
   void clearDatabase() {
     for (String table :
         List.of(
+            "classroom_tutors",
             "import_history",
             "planned_sessions",
             "calendar_blocks",

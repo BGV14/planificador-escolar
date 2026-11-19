@@ -12,19 +12,31 @@ import type { Editor } from "./EntityEditor";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Empty } from "./Feedback";
+import { TeacherAssignments } from "./TeacherAssignments";
 export function Settings({
   data,
   user,
   onEdit,
+  onChanged,
 }: {
   data: PlannerData;
   user: User;
   onEdit: (e: Editor) => void;
+  onChanged: () => void | Promise<void>;
 }) {
   const admin = user.role === "ADMIN";
   const editable = data.areas.some((a) => canEdit(user, a));
   return (
     <div className="grid gap-6 xl:grid-cols-2">
+      {admin && (
+        <TeacherAssignments
+          key={data.plan.id}
+          contextId={data.plan.id}
+          teachers={data.teachers}
+          areas={data.areas}
+          onChanged={onChanged}
+        />
+      )}
       <Card>
         <div className="section-heading">
           <h2>

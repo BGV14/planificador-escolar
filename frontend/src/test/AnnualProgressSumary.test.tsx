@@ -1,3 +1,4 @@
+import { AnnualCoverageSummary } from "../components/AnnualCoverageSummary";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { AnnualProgressSummary } from "../components/AnnualProgressSummary";
@@ -137,4 +138,19 @@ describe("annual coverage summary", () => {
     expectRow("Arte", ["1", "0", "0", "1", "0 %"]);
     expectRow("Total anual", ["1", "0", "0", "1", "0 %"]);
   });
+});
+
+it("composes one canonical accessible summary without duplicate annual regions", () => {
+  const coverage = buildAnnualCoverage({ areas: [], topics: [], sessions: [] });
+  render(
+    <AnnualCoverageSummary coverage={coverage} contextLabel="Test context" />,
+  );
+  expect(
+    screen.getAllByRole("region", { name: "Avance curricular anual" }),
+  ).toHaveLength(1);
+  expect(
+    screen.getAllByRole("table", { name: "Resumen anual por área" }),
+  ).toHaveLength(1);
+  expect(screen.getByText("Resumen anual por área").tagName).toBe("CAPTION");
+  expect(document.querySelector(".stats-grid")).toBeInTheDocument();
 });

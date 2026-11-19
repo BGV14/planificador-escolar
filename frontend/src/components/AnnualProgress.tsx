@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -27,8 +27,10 @@ import { ErrorNotice, Loading } from "./Feedback";
 export function AnnualProgress({
   contextId,
   onSelectSession,
+  isCurrent,
 }: {
   contextId: string;
+  isCurrent?: () => boolean;
   onSelectSession?: (topicId: string) => void;
 }) {
   const [data, setData] = useState<AnnualProgressData | null>(null);
@@ -45,52 +47,48 @@ export function AnnualProgress({
     null,
   );
 
-  // CRITERION 5: Cambio de contexto académico
-  // Al cambiar de contextId, se deben restablecer automáticamente los filtros activos
-  // y la vista de detalle. No debe mostrarse información del contexto anterior.
+  const requestEpoch = useRef(0);
+  const identityGuard = useRef(isCurrent);
+  identityGuard.current = isCurrent;
+  const load = useCallback(
+    async (refresh = false) => {
+      if (!contextId || identityGuard.current?.() === false) return;
+      const epoch = ++requestEpoch.current;
+      const current = () =>
+        epoch === requestEpoch.current && identityGuard.current?.() !== false;
+      setLoading(true);
+      setError("");
+      try {
+        if (refresh) {
+          await api.refreshCsrf().catch(() => {});
+          if (!current()) return;
+        }
+        const response = await api.get<AnnualProgressData>(
+          "/progress/annual?contextId=" + encodeURIComponent(contextId),
+        );
+        if (current()) setData(response);
+      } catch (error) {
+        if (current()) setError(errorMessage(error));
+      } finally {
+        if (current()) setLoading(false);
+      }
+    },
+    [contextId],
+  );
+
   useEffect(() => {
-    // 1. Restablecer inmediatamente filtros, vista de detalle y datos del contexto anterior
     setAreaFilter("");
     setStatusFilter("");
     setSearchQuery("");
     setSelectedTopic(null);
     setData(null);
     setError("");
-
-    if (!contextId) return;
-
-    let active = true;
-    setLoading(true);
-
-    const fetchProgress = async () => {
-      try {
-        // Asegurar la inicialización del token CSRF mediante el cliente global
-        await api.ensureCsrf().catch(() => {
-          /* Continuar para permitir que el servidor responda si no requiere pre-fetch */
-        });
-        const res = await api.get<AnnualProgressData>(
-          `/progress/annual?contextId=${encodeURIComponent(contextId)}`,
-        );
-        if (active) {
-          setData(res);
-        }
-      } catch (err) {
-        if (active) {
-          setError(errorMessage(err));
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void fetchProgress();
-
+    setLoading(false);
+    void load();
     return () => {
-      active = false;
+      ++requestEpoch.current;
     };
-  }, [contextId]);
+  }, [load]);
 
   const handleResetFilters = () => {
     setAreaFilter("");
@@ -99,21 +97,7 @@ export function AnnualProgress({
   };
 
   const handleReload = () => {
-    if (!contextId) return;
-    setLoading(true);
-    setError("");
-    // Si venció el token CSRF o la sesión, refrescar el token antes de reintentar
-    api
-      .refreshCsrf()
-      .catch(() => {})
-      .then(() =>
-        api.get<AnnualProgressData>(
-          `/progress/annual?contextId=${encodeURIComponent(contextId)}`,
-        ),
-      )
-      .then(setData)
-      .catch((err) => setError(errorMessage(err)))
-      .finally(() => setLoading(false));
+    void load(true);
   };
 
   if (loading) {
@@ -408,7 +392,7 @@ export function AnnualProgress({
                     <td>
                       <p className="font-medium text-slate-800">{topic.name}</p>
                       <small className="text-slate-400">
-                        Unidad {topic.unit} · Catálogo anual
+                        Unidad {topic.unit} · Catálogo simulado
                       </small>
                     </td>
                     <td>
@@ -509,8 +493,8 @@ export function AnnualProgress({
                 </span>
                 <p className="mt-2 text-sm font-semibold text-slate-800">
                   {selectedTopic.catalogTopic
-                    ? "Catálogo anual oficial"
-                    : "Tema personalizado"}
+                    ? "Catálogo simulado de demostración"
+                    : "Tema simulado"}
                 </p>
               </div>
             </div>

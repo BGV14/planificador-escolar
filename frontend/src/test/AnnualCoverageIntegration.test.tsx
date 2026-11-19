@@ -14,6 +14,7 @@ const contexts = [2026, 2027].map((year, index) => ({
   schoolId: "school",
   year,
   level: "PRIMARY",
+  section: "UNICA",
   stageKind: "GRADE",
   stageValue: 3,
   grade: 3,
@@ -141,7 +142,7 @@ it("uses the complete annual catalog and preserves the monthly area and month on
   expect(
     screen.queryByRole("combobox", { name: "Mes" }),
   ).not.toBeInTheDocument();
-  expect(screen.getByText("Exportar plan")).not.toBeVisible();
+  expect(screen.queryByText("Exportar plan")).not.toBeInTheDocument();
   const summary = screen.getByRole("region", {
     name: "Avance curricular anual",
   });

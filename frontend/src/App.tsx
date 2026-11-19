@@ -1,3 +1,4 @@
+import { PlatformAdministration } from "./components/PlatformAdministration";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BookOpen,
@@ -12,7 +13,6 @@ import {
   Download,
   RefreshCw,
   CheckCheck,
-  CheckCircle2,
   CalendarClock,
   TriangleAlert,
   Menu,
@@ -41,20 +41,32 @@ import { AcademicContexts } from "./components/AcademicContexts";
 import { AnnualCoverageSummary } from "./components/AnnualCoverageSummary";
 import { AnnualCoverageDetails } from "./components/AnnualCoverageDetails";
 import { buildAnnualCoverage } from "./lib/coverage";
-import { AnnualProgress } from "./components/AnnualProgress";
-type View =
-  "calendar" | "annual" | "topics" | "progress" | "imports" | "settings";
+type View = "calendar" | "annual" | "topics" | "imports" | "settings";
 const navigation = [
   { id: "calendar", label: "Mi planificación", icon: CalendarDays },
   { id: "annual", label: "Avance anual", icon: CheckCheck },
   { id: "topics", label: "Banco de temas", icon: Layers3 },
-  { id: "progress", label: "Temas del año", icon: CheckCircle2 },
   { id: "imports", label: "Importaciones", icon: Upload },
   { id: "settings", label: "Escuela y horarios", icon: Settings2 },
 ] as const;
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
+  const [administrationScope, setAdministrationScope] = useState<
+    "school" | "platform"
+  >("school");
+  const [platformDenied, setPlatformDenied] = useState(false);
+  const onPlatformAccessLost = useCallback((expired: boolean) => {
+    setAdministrationScope("school");
+    setPlatformDenied(true);
+    setEditor(null);
+    if (expired) {
+      setUser(null);
+      setData(null);
+      ++loadEpoch.current;
+      identity.current = "";
+    }
+  }, []);
   const [data, setData] = useState<PlannerData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -72,7 +84,7 @@ export default function App() {
   const context = contexts.find((c) => c.id === contextId);
   const renderSelection = selectionEpoch.current;
   function selectContext(id: string) {
-    if (id === contextId) return;
+    if (id && id === contextId) return;
     ++selectionEpoch.current;
     ++loadEpoch.current;
     identity.current = user ? `${user.id}:${id}` : "";
@@ -87,6 +99,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     let active = true;
+    const initialSelection = selectionEpoch.current;
     setContexts([]);
     setContextId("");
     identity.current = "";
@@ -94,7 +107,13 @@ export default function App() {
       .get<AcademicContext[]>("/contexts")
       .then((items) => {
         if (!active) return;
-        setContexts(items);
+        setContexts((existing) => {
+          const merged = new Map(items.map((item) => [item.id, item]));
+          existing.forEach((item) => merged.set(item.id, item));
+          return [...merged.values()];
+        });
+        if (selectionEpoch.current !== initialSelection || identity.current)
+          return;
         const first = items.find((c) => c.legacyDefault) ?? items[0];
         if (first) {
           identity.current = `${user.id}:${first.id}`;
@@ -172,6 +191,11 @@ export default function App() {
       );
     } catch (e) {
       if (epoch !== loadEpoch.current) return;
+      if (e instanceof ApiError && (e.status === 403 || e.status === 404)) {
+        setData(null);
+        setEditor(null);
+        setAreaId("");
+      }
       if (e instanceof ApiError && e.status === 401) {
         setUser(null);
         setData(null);
@@ -197,6 +221,8 @@ export default function App() {
       setEditor(null);
       setAreaId("");
       setView("calendar");
+      setAdministrationScope("school");
+      setPlatformDenied(false);
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -228,7 +254,12 @@ export default function App() {
       if (isCurrent()) setDownloading(false);
     }
   }
-  if (checking) return <Loading />;
+  if (checking)
+    return (
+      <>
+        <Loading />
+      </>
+    );
   if (!user)
     return (
       <>
@@ -242,13 +273,67 @@ export default function App() {
             ++loadEpoch.current;
             setData(null);
             setUser(u);
+            setAdministrationScope("school");
+            setPlatformDenied(false);
             setError("");
           }}
         />
       </>
     );
+  const globalAvailable =
+    user.role === "ADMIN" && user.superadmin === true && !platformDenied;
+  const administrationTabs = globalAvailable && (
+    <div
+      role="tablist"
+      aria-label="Ámbito de administración"
+      className="flex flex-wrap gap-2 border-b bg-white px-6 py-3"
+    >
+      <Button
+        role="tab"
+        aria-selected={administrationScope === "platform"}
+        aria-controls="main"
+        variant={administrationScope === "platform" ? "default" : "outline"}
+        onClick={() => {
+          setEditor(null);
+          setAdministrationScope("platform");
+        }}
+      >
+        Superadministrador
+      </Button>
+      <Button
+        role="tab"
+        aria-selected={administrationScope === "school"}
+        aria-controls="main"
+        variant={administrationScope === "school" ? "default" : "outline"}
+        onClick={() => {
+          setEditor(null);
+          setAdministrationScope("school");
+        }}
+      >
+        Administrador de mi colegio
+      </Button>
+    </div>
+  );
+  if (globalAvailable && administrationScope === "platform")
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <header className="topbar">
+          <strong>aula. · {user.username}</strong>
+          <Button variant="outline" onClick={() => void logout()}>
+            Cerrar sesión
+          </Button>
+        </header>
+        {administrationTabs}
+        <main id="main" className="main-content mx-auto max-w-6xl">
+          <PlatformAdministration
+            key={`${user.id}:${user.schoolId}`}
+            onAccessLost={onPlatformAccessLost}
+          />
+        </main>
+      </div>
+    );
   const annualCoverage =
-    view === "annual" && data ? buildAnnualCoverage(data) : null;
+    data && view === "annual" ? buildAnnualCoverage(data) : null;
   const selectedTopics =
     data?.topics.filter((t) => !areaId || t.areaId === areaId) ?? [];
   const topicIds = new Set(selectedTopics.map((t) => t.id));
@@ -368,6 +453,7 @@ export default function App() {
           </div>
           <span className="badge success">Escuela compartida</span>
         </header>
+        {administrationTabs}
         <main id="main" className="main-content">
           <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -378,7 +464,7 @@ export default function App() {
                 {view === "calendar"
                   ? "Planifica con propósito."
                   : view === "annual"
-                    ? "El aprendizaje, a lo largo del año."
+                    ? "Tu avance, con perspectiva anual."
                     : view === "topics"
                       ? "Cada tema, un nuevo aprendizaje."
                       : view === "imports"
@@ -389,7 +475,7 @@ export default function App() {
                 {view === "calendar"
                   ? "Organiza las sesiones de tu escuela y sigue el avance de cada área."
                   : view === "annual"
-                    ? "Consulta el catálogo anual completo del plan seleccionado, sin filtros mensuales."
+                    ? "Consulta todos los temas del plan, sin limitar el avance al mes seleccionado."
                     : view === "topics"
                       ? "Explora, organiza y programa los temas de tu catálogo."
                       : view === "imports"
@@ -442,11 +528,15 @@ export default function App() {
             </div>
           )}
           {!data ? (
-            contextId ? (
+            contextId && (loading || !error) ? (
               <Loading />
             ) : (
               <p className="text-sm text-slate-500">
-                Selecciona o crea un plan para comenzar.
+                {contextId
+                  ? "El aula no está disponible. Verifica tu asignación con la administración o selecciona otra aula."
+                  : user.role === "TEACHER"
+                    ? "No tienes aulas asignadas. Solicita a la administración una tutoría o responsabilidad de curso."
+                    : "Selecciona o crea un plan para comenzar."}
               </p>
             )
           ) : (
@@ -471,130 +561,139 @@ export default function App() {
                   )}
                 </Card>
               )}
-              <div
-                style={view === "annual" ? { display: "none" } : undefined}
-                className="mb-6 flex flex-wrap items-center justify-between gap-3"
-              >
-                <div className="flex flex-wrap gap-3">
-                  <Select
-                    aria-label="Filtrar por área"
-                    value={areaId}
-                    onChange={(e) => setAreaId(e.target.value)}
-                    className="w-auto min-w-48"
-                  >
-                    <option value="">Todas las áreas</option>
-                    {data.areas.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </Select>
-                  <div className="flex items-center rounded-lg border border-slate-200 bg-white">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Mes anterior"
-                      disabled={month === 1}
-                      onClick={() => setMonth(month - 1)}
-                    >
-                      <ChevronLeft size={16} />
-                    </Button>
+              {view !== "annual" && (
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <Select
-                      aria-label="Mes"
-                      className="min-w-36 border-0 text-center"
-                      value={month}
-                      onChange={(e) => setMonth(Number(e.target.value))}
+                      aria-label="Filtrar por área"
+                      value={areaId}
+                      onChange={(e) => setAreaId(e.target.value)}
+                      className="w-auto min-w-48"
                     >
-                      {months.map((m, i) => (
-                        <option key={m} value={i + 1}>
-                          {m} {data.plan.year}
+                      <option value="">Todas las áreas</option>
+                      {data.areas.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
                         </option>
                       ))}
                     </Select>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Mes siguiente"
-                      disabled={month === 12}
-                      onClick={() => setMonth(month + 1)}
-                    >
-                      <ChevronRight size={16} />
-                    </Button>
+                    <div className="flex items-center rounded-lg border border-slate-200 bg-white">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Mes anterior"
+                        disabled={month === 1}
+                        onClick={() => setMonth(month - 1)}
+                      >
+                        <ChevronLeft size={16} />
+                      </Button>
+                      <Select
+                        aria-label="Mes"
+                        className="min-w-36 border-0 text-center"
+                        value={month}
+                        onChange={(e) => setMonth(Number(e.target.value))}
+                      >
+                        {months.map((m, i) => (
+                          <option key={m} value={i + 1}>
+                            {m} {data.plan.year}
+                          </option>
+                        ))}
+                      </Select>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Mes siguiente"
+                        disabled={month === 12}
+                        onClick={() => setMonth(month + 1)}
+                      >
+                        <ChevronRight size={16} />
+                      </Button>
+                    </div>
                   </div>
+                  <details className="relative">
+                    <summary className="export-summary">
+                      <Download size={15} />
+                      {downloading ? "Preparando…" : "Exportar plan"}
+                    </summary>
+                    <div className="export-menu">
+                      <p className="mb-2 text-xs text-slate-500">
+                        Área y mes seleccionados
+                      </p>
+                      <Button
+                        variant="ghost"
+                        disabled={downloading}
+                        onClick={() => void download("xlsx")}
+                      >
+                        Descargar Excel (.xlsx)
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        disabled={downloading}
+                        onClick={() => void download("pdf")}
+                      >
+                        Descargar PDF
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        disabled={
+                          downloading ||
+                          data.plan.level !== "PRIMARY" ||
+                          data.plan.stageValue !== 6 ||
+                          data.plan.section !== "UNICA"
+                        }
+                        onClick={() => void download("json")}
+                      >
+                        <FileJson size={15} />
+                        Catálogo heredado del plan · v2
+                      </Button>
+                      <p className="mt-1 text-[10px] text-amber-800">
+                        Solo sexto de Primaria con sección única. Catálogo
+                        heredado del plan y filtros seleccionados; no incluye{" "}
+                        {
+                          data.topics.filter(
+                            (t) =>
+                              !t.legacyId && (!areaId || t.areaId === areaId),
+                          ).length
+                        }{" "}
+                        temas personalizados del área seleccionada; usa v4 para
+                        conservarlos.
+                      </p>
+                      {user.role === "ADMIN" && (
+                        <>
+                          <hr className="my-2" />
+                          <Button
+                            variant="ghost"
+                            disabled={downloading}
+                            onClick={() => void download("full-v4")}
+                          >
+                            Toda la escuela · todos los planes · v4
+                          </Button>
+                          <p className="mt-1 text-[10px] text-slate-500">
+                            Todos los años, niveles, edades/grados y meses,
+                            incluidas áreas y temas personalizados. Su
+                            restauración automática aún no está disponible; no
+                            se importa como v2.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </details>
                 </div>
-                <details className="relative">
-                  <summary className="export-summary">
-                    <Download size={15} />
-                    {downloading ? "Preparando…" : "Exportar plan"}
-                  </summary>
-                  <div className="export-menu">
-                    <p className="mb-2 text-xs text-slate-500">
-                      Área y mes seleccionados
-                    </p>
-                    <Button
-                      variant="ghost"
-                      disabled={downloading}
-                      onClick={() => void download("xlsx")}
-                    >
-                      Descargar Excel (.xlsx)
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      disabled={downloading}
-                      onClick={() => void download("pdf")}
-                    >
-                      Descargar PDF
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      disabled={
-                        downloading ||
-                        data.plan.level !== "PRIMARY" ||
-                        data.plan.stageValue !== 6
-                      }
-                      onClick={() => void download("json")}
-                    >
-                      <FileJson size={15} />
-                      Catálogo heredado del plan · v2
-                    </Button>
-                    <p className="mt-1 text-[10px] text-amber-800">
-                      Solo sexto de Primaria. Catálogo heredado del plan y
-                      filtros seleccionados; no incluye{" "}
-                      {
-                        data.topics.filter(
-                          (t) =>
-                            !t.legacyId && (!areaId || t.areaId === areaId),
-                        ).length
-                      }{" "}
-                      temas personalizados del área seleccionada; usa v4 para
-                      conservarlos.
-                    </p>
-                    <hr className="my-2" />
-                    <Button
-                      variant="ghost"
-                      disabled={downloading}
-                      onClick={() => void download("full-v4")}
-                    >
-                      Toda la escuela · todos los planes · v4
-                    </Button>
-                    <p className="mt-1 text-[10px] text-slate-500">
-                      Todos los años, niveles, edades/grados y meses, incluidas
-                      áreas y temas personalizados. Su restauración automática
-                      aún no está disponible; no se importa como v2.
-                    </p>
-                  </div>
-                </details>
-              </div>
-              {view === "annual" && annualCoverage && context && (
+              )}
+              {view === "annual" && annualCoverage && (
                 <div className="space-y-6">
                   <AnnualCoverageSummary
                     coverage={annualCoverage}
-                    contextLabel={context.displayLabel}
+                    contextLabel={data.plan.displayLabel}
                   />
                   <AnnualCoverageDetails
                     coverage={annualCoverage}
-                    contextLabel={context.displayLabel}
-                    contextKey={`${user.id}:${context.id}`}
+                    contextLabel={data.plan.displayLabel}
+                    contextKey={JSON.stringify([
+                      user.schoolId,
+                      user.id,
+                      contextId,
+                    ])}
                   />
                 </div>
               )}
@@ -725,22 +824,17 @@ export default function App() {
                   onNewTopic={() => setEditor({ kind: "topics" })}
                 />
               )}
-              {view === "progress" && (
-                <AnnualProgress
-                  contextId={contextId}
-                  onSelectSession={(topicId) => {
-                    const session = data.sessions.find(
-                      (s) => s.topicId === topicId,
-                    );
-                    if (session) editSession(session);
-                  }}
-                />
-              )}
               {view === "imports" && (
                 <Imports key={contextId} data={data} onSaved={reload} />
               )}
               {view === "settings" && (
-                <Settings data={data} user={user} onEdit={setEditor} />
+                <Settings
+                  key={`${user.id}:${contextId}`}
+                  data={data}
+                  user={user}
+                  onEdit={setEditor}
+                  onChanged={reload}
+                />
               )}
               <footer className="mt-8 flex flex-wrap justify-between gap-2 text-[11px] text-slate-400">
                 <span>
