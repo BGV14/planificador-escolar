@@ -145,7 +145,7 @@ export function EntityEditor({
       body = {
         username: val("username"),
         password: val("password"),
-        role: val("role"),
+        role: "TEACHER",
       };
     try {
       await api.mutate(
@@ -478,7 +478,6 @@ export function EntityEditor({
                 {(id) => (
                   <Select id={id} name="role" defaultValue="TEACHER">
                     <option value="TEACHER">Docente</option>
-                    <option value="ADMIN">Administrador</option>
                   </Select>
                 )}
               </Field>

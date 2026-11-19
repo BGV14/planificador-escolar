@@ -30,6 +30,7 @@ class PlannerApiTest {
   void setup() throws Exception {
     for (String table :
         List.of(
+            "classroom_tutors",
             "import_history",
             "planned_sessions",
             "calendar_blocks",

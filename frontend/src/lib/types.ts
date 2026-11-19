@@ -5,6 +5,7 @@ export interface School {
   grade: number;
 }
 export interface User {
+  superadmin?: boolean;
   id: string;
   schoolId: string;
   username: string;
@@ -64,6 +65,7 @@ export interface Warning {
 }
 export type AcademicLevel = "INITIAL" | "PRIMARY" | "SECONDARY";
 export interface AcademicContext {
+  section: string;
   id: string;
   schoolId: string;
   year: number;
@@ -112,4 +114,18 @@ export interface PlannerData {
   plan: Plan;
   history: ImportHistory[];
   teachers: Teacher[];
+}
+
+export interface PlatformAdministrator {
+  id: string;
+  schoolId: string;
+  username: string;
+  role: "ADMIN";
+}
+export interface PlatformSchool {
+  id: string;
+  name: string;
+  year: number;
+  grade: number;
+  administrators: PlatformAdministrator[];
 }

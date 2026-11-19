@@ -15,4 +15,3 @@ public enum TopicAnnualStatus {
     return displayName;
   }
 }
-

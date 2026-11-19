@@ -234,6 +234,21 @@ public class PlannerController {
     return planner.contexts(user);
   }
 
+  @GetMapping("/classroom-tutors")
+  List<Map<String, Object>> tutors(@AuthenticationPrincipal PlannerPrincipal user, @RequestParam String contextId) {
+    return planner.tutors(user, contextId);
+  }
+
+  @PostMapping("/classroom-tutors")
+  Map<String, Object> tutor(@AuthenticationPrincipal PlannerPrincipal user, @RequestParam String contextId, @RequestBody TutorInput input) {
+    return planner.assignTutor(user, contextId, input);
+  }
+
+  @DeleteMapping("/classroom-tutors/{userId}")
+  void revokeTutor(@AuthenticationPrincipal PlannerPrincipal user, @RequestParam String contextId, @PathVariable String userId) {
+    planner.revokeTutor(user, contextId, userId);
+  }
+
   @PostMapping("/contexts")
   Map<String, Object> createContext(
       @AuthenticationPrincipal PlannerPrincipal user, @RequestBody ContextInput input) {

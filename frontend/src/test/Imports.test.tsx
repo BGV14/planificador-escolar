@@ -110,3 +110,19 @@ it("does not offer legacy import into an incompatible context", () => {
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(api.mutate).not.toHaveBeenCalled();
 });
+
+it("names the exact section destination and warns that legacy files have no section", () => {
+  const named = {
+    ...data,
+    plan: {
+      ...data.plan,
+      section: "B",
+      displayLabel: "2026 · Primaria · 6° grado · Sección B",
+    },
+  };
+  render(<Imports data={named} onSaved={vi.fn()} />);
+  expect(screen.getByText(/Destino:.*Sección B/)).toBeVisible();
+  expect(
+    screen.getByText(/archivos heredados no identifican secciones/i),
+  ).toBeVisible();
+});

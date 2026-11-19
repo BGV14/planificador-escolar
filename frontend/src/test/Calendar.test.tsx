@@ -40,6 +40,7 @@ describe("calendar rendering without hidden overflow", () => {
         id: "ctx",
         schoolId: "school",
         level: "PRIMARY",
+        section: "UNICA",
         stageKind: "GRADE",
         stageValue: 6,
         cycle: null,

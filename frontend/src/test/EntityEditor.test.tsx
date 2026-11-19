@@ -34,6 +34,7 @@ const data: PlannerData = {
     id: "ctx",
     schoolId: "school",
     level: "PRIMARY",
+    section: "UNICA",
     stageKind: "GRADE",
     stageValue: 6,
     cycle: null,
@@ -107,6 +108,7 @@ it("constrains custom session dates to the chosen future year", () => {
       displayLabel: "2027 · Inicial · Menores de 1 año",
       grade: null,
       level: "INITIAL" as const,
+      section: "UNICA",
       stageKind: "AGE" as const,
       stageValue: 0,
     },
@@ -131,4 +133,37 @@ it("constrains custom session dates to the chosen future year", () => {
     "2027-12-31",
   );
   expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled();
+});
+
+it("creates only teachers even for an account with global capability", async () => {
+  vi.mocked(api.mutate).mockReset().mockResolvedValue({});
+  render(
+    <EntityEditor
+      editor={{ kind: "users" }}
+      data={data}
+      user={{ ...teacher, role: "ADMIN", superadmin: true }}
+      areaId="area"
+      onClose={vi.fn()}
+      onSaved={vi.fn().mockResolvedValue(undefined)}
+      onReload={vi.fn().mockResolvedValue(undefined)}
+    />,
+  );
+  expect(
+    screen.queryByRole("option", { name: "Administrador" }),
+  ).not.toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText("Usuario"), "newteacher");
+  await userEvent.type(
+    screen.getByLabelText("Contraseña inicial"),
+    "synthetic-password",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Guardar cambios" }),
+  );
+  await waitFor(() =>
+    expect(api.mutate).toHaveBeenCalledWith("/users", "POST", {
+      username: "newteacher",
+      password: "synthetic-password",
+      role: "TEACHER",
+    }),
+  );
 });

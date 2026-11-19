@@ -1,5 +1,6 @@
 package pe.edu.planner.progress;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -8,11 +9,12 @@ import pe.edu.planner.auth.PlannerPrincipal;
 
 /**
  * Controlador REST para consultar el avance anual de temas por área y estado.
- * Accesible para usuarios autenticados con rol ADMIN o TEACHER pertenecientes a la escuela activa.
- * No exige titularidad/responsabilidad del área ya que la consulta es de solo lectura para todo el catálogo.
+ * Demostración de catálogo sintético exclusiva para administración de la escuela activa.
+ * El servicio aplica la autorización; los datos simulados no representan asignaciones docentes.
  */
 @RestController
 @RequestMapping("/api/progress")
+@Profile("annual-progress-demo")
 public class AnnualProgressController {
 
   private final AnnualProgressService service;

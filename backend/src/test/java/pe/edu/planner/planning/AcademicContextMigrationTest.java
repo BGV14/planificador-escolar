@@ -124,4 +124,39 @@ class AcademicContextMigrationTest {
           .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
   }
+  @Test
+  void upgradesPopulatedV3WithoutChangingIdentityOrChildren() {
+    oldDatabase(6);
+    Flyway.configure().dataSource(source).target("3").load().migrate();
+    var context = db.queryForMap("select * from academic_contexts where id='school'");
+    var session = db.queryForMap("select * from planned_sessions where id='session'");
+    var children = new java.util.LinkedHashMap<String, java.util.List<java.util.Map<String, Object>>>();
+    for (String table : java.util.List.of("areas", "topics", "schedules", "calendar_blocks", "import_history"))
+      children.put(table, db.queryForList("select * from " + table + " where context_id='school'"));
+    Flyway.configure().dataSource(source).load().migrate();
+    var upgraded = db.queryForMap("select * from academic_contexts where id='school'");
+    assertThat(upgraded).containsAllEntriesOf(context).containsEntry("section", "UNICA");
+    assertThat(db.queryForMap("select * from planned_sessions where id='session'")).isEqualTo(session);
+    for (String table : java.util.List.of("areas", "topics", "schedules", "calendar_blocks", "import_history"))
+      assertThat(db.queryForList("select * from " + table + " where context_id='school'"))
+          .isEqualTo(children.get(table));
+    for (String section : java.util.List.of("A", "B"))
+      db.update("insert into academic_contexts(id,school_id,school_year,level,stage_kind,stage_value,section) values(?,'school',2027,'PRIMARY','GRADE',6,?)", section, section);
+    assertThatThrownBy(() -> db.update("insert into academic_contexts(id,school_id,school_year,level,stage_kind,stage_value,section) values('duplicate','school',2027,'PRIMARY','GRADE',6,'A')"))
+        .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+  }
+
+  @Test
+  void refusesUnexpectedUniqueMetadataBeforeNonTransactionalDdl() {
+    oldDatabase(6);
+    Flyway.configure().dataSource(source).target("3").load().migrate();
+    String key = db.queryForObject(
+        "select constraint_name from information_schema.table_constraints tc where table_schema='public' and table_name='academic_contexts' and constraint_type='UNIQUE' and (select count(*) from information_schema.key_column_usage k where k.constraint_name=tc.constraint_name and k.constraint_schema=tc.constraint_schema)=4", String.class);
+    db.execute("alter table academic_contexts drop constraint \"" + key.replace("\"", "\"\"") + "\"");
+    assertThatThrownBy(() -> Flyway.configure().dataSource(source).load().migrate())
+        .hasStackTraceContaining("Expected exactly one four-column");
+    assertThat(db.queryForObject("select count(*) from information_schema.columns where table_schema='public' and table_name='academic_contexts' and column_name='section'", Integer.class)).isZero();
+    assertThat(db.queryForObject("select version from planned_sessions where id='session'", Long.class)).isEqualTo(9L);
+  }
+
 }

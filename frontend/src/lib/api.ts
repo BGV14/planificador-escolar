@@ -46,17 +46,9 @@ export class ApiClient {
   private csrf: { token: string; headerName: string } | null = null;
   constructor(private fetcher: typeof fetch = fetch) {}
   private async send(path: string, init: RequestInit = {}): Promise<Response> {
-    const headers: Record<string, string> = {
-      ...(init.headers as Record<string, string>),
-    };
-    if (this.csrf && path !== "/csrf" && !headers[this.csrf.headerName]) {
-      headers[this.csrf.headerName] = this.csrf.token;
-    }
-    const hasHeaders = Object.keys(headers).length > 0;
     // Native browser fetch requires its platform receiver, not the ApiClient instance.
     const response = await this.fetcher.call(globalThis, `/api${path}`, {
       ...init,
-      ...(hasHeaders ? { headers } : {}),
       credentials: "same-origin",
       cache: "no-store",
     });
@@ -71,15 +63,8 @@ export class ApiClient {
     }
     return response;
   }
-  async get<T>(path: string, init?: RequestInit): Promise<T> {
-    return (await this.send(path, init)).json();
-  }
-  getCsrf(): { token: string; headerName: string } | null {
-    return this.csrf;
-  }
-  async ensureCsrf(): Promise<{ token: string; headerName: string }> {
-    if (!this.csrf) await this.refreshCsrf();
-    return this.csrf!;
+  async get<T>(path: string): Promise<T> {
+    return (await this.send(path)).json();
   }
   async refreshCsrf() {
     this.csrf = await this.get("/csrf");

@@ -20,6 +20,7 @@ server:
     include-message: never
 planner:
   bootstrap:
+    superadmin-username: ${PLANNER_SUPERADMIN_USERNAME:}
     username: ${PLANNER_ADMIN_USERNAME:}
     password: ${PLANNER_ADMIN_PASSWORD:}
     school: ${PLANNER_SCHOOL_NAME:}

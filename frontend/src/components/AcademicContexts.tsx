@@ -33,6 +33,15 @@ export function AcademicContexts({
   const [year, setYear] = useState(current?.year ?? new Date().getFullYear());
   const [level, setLevel] = useState<AcademicLevel>("PRIMARY");
   const [stage, setStage] = useState(1);
+  const [section, setSection] = useState("UNICA");
+  const [selectionYear, setSelectionYear] = useState(current?.year);
+  const [selectionLevel, setSelectionLevel] = useState(current?.level);
+  useEffect(() => {
+    if (current) {
+      setSelectionYear(current.year);
+      setSelectionLevel(current.level);
+    }
+  }, [current]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const active = useRef(true);
@@ -48,16 +57,27 @@ export function AcademicContexts({
     };
   }, []);
   const years = [...new Set(contexts.map((c) => c.year))].sort((a, b) => a - b);
-  const atYear = contexts.filter((c) => c.year === current?.year);
-  const atLevel = atYear.filter((c) => c.level === current?.level);
+  const atYear = contexts.filter((c) => c.year === selectionYear);
+  const atLevel = atYear.filter((c) => c.level === selectionLevel);
   async function create(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const selection = selectionEpoch.current;
     setBusy(true);
     setError("");
     try {
+      const canonicalSection = section.trim().toUpperCase();
+      if (!/^[A-Z][A-Z0-9]{0,15}$/.test(canonicalSection)) {
+        setError(
+          "La sección debe tener de 1 a 16 letras ASCII o dígitos y empezar por una letra.",
+        );
+        return;
+      }
       const existing = contexts.find(
-        (c) => c.year === year && c.level === level && c.stageValue === stage,
+        (c) =>
+          c.year === year &&
+          c.level === level &&
+          c.stageValue === stage &&
+          c.section === canonicalSection,
       );
       if (existing) {
         onSelect(existing.id);
@@ -67,6 +87,7 @@ export function AcademicContexts({
         year,
         level,
         stageValue: stage,
+        section: canonicalSection,
       });
       if (active.current) onCreated(result);
     } catch (e) {
@@ -90,16 +111,18 @@ export function AcademicContexts({
             Año del plan
             <Select
               aria-label="Año del plan"
-              value={current?.year ?? ""}
+              value={selectionYear ?? ""}
               onChange={(e) => {
-                const next =
-                  contexts.find(
-                    (c) =>
-                      c.year === Number(e.target.value) &&
-                      c.level === current?.level &&
-                      c.stageValue === current?.stageValue,
-                  ) ?? contexts.find((c) => c.year === Number(e.target.value));
-                if (next) onSelect(next.id);
+                const nextYear = Number(e.target.value);
+                setSelectionYear(nextYear);
+                const next = contexts.find(
+                  (c) =>
+                    c.year === nextYear &&
+                    c.level === current?.level &&
+                    c.stageValue === current?.stageValue &&
+                    c.section === current?.section,
+                );
+                onSelect(next?.id ?? "");
               }}
             >
               {years.map((y) => (
@@ -111,15 +134,16 @@ export function AcademicContexts({
             Nivel del plan
             <Select
               aria-label="Nivel del plan"
-              value={current?.level ?? ""}
+              value={selectionLevel ?? ""}
               onChange={(e) => {
-                const next =
-                  atYear.find(
-                    (c) =>
-                      c.level === e.target.value &&
-                      c.stageValue === current?.stageValue,
-                  ) ?? atYear.find((c) => c.level === e.target.value);
-                if (next) onSelect(next.id);
+                setSelectionLevel(e.target.value as AcademicLevel);
+                const next = atYear.find(
+                  (c) =>
+                    c.level === e.target.value &&
+                    c.stageValue === current?.stageValue &&
+                    c.section === current?.section,
+                );
+                onSelect(next?.id ?? "");
               }}
             >
               {Object.entries(levels)
@@ -132,19 +156,27 @@ export function AcademicContexts({
             </Select>
           </label>
           <label className="text-xs">
-            {current?.level === "INITIAL" ? "Edad del plan" : "Grado del plan"}
+            {selectionLevel === "INITIAL"
+              ? "Edad y sección del plan"
+              : "Grado y sección del plan"}
             <Select
               aria-label={
-                current?.level === "INITIAL"
-                  ? "Edad del plan"
-                  : "Grado del plan"
+                selectionLevel === "INITIAL"
+                  ? "Edad y sección del plan"
+                  : "Grado y sección del plan"
               }
               value={selected}
               onChange={(e) => onSelect(e.target.value)}
             >
+              <option value="" disabled>
+                Selecciona un aula
+              </option>
               {atLevel.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {stageLabel(c.level, c.stageValue)}
+                  {stageLabel(c.level, c.stageValue)} ·{" "}
+                  {c.section === "UNICA"
+                    ? "Sección única"
+                    : `Sección ${c.section}`}
                 </option>
               ))}
             </Select>
@@ -224,6 +256,16 @@ export function AcademicContexts({
                     </option>
                   ))}
                 </Select>
+              </label>
+              <label className="text-xs">
+                Sección del nuevo plan
+                <Input
+                  aria-label="Sección del nuevo plan"
+                  required
+                  maxLength={32}
+                  value={section}
+                  onChange={(e) => setSection(e.target.value)}
+                />
               </label>
             </fieldset>
             <Button type="submit" disabled={busy}>

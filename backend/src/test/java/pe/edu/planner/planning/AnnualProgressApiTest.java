@@ -7,7 +7,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.context.ActiveProfiles;
 
+@ActiveProfiles({"test", "annual-progress-demo"})
 class AnnualProgressApiTest extends PlannerApiTest {
 
   @Test
@@ -23,9 +25,9 @@ class AnnualProgressApiTest extends PlannerApiTest {
   }
 
   @Test
-  void returns200OkForAuthenticatedTeacherWithSessionAndCsrfToken() throws Exception {
+  void returns200OkForAuthenticatedAdminWithSessionAndCsrfToken() throws Exception {
     // Iniciar sesión como docente y asegurar cabecera CSRF sincronizada
-    login("teacher");
+    login("admin");
     assertThat(csrf).isNotBlank();
 
     var request =
@@ -53,19 +55,15 @@ class AnnualProgressApiTest extends PlannerApiTest {
   }
 
   @Test
-  void doesNotRequireAreaOwnership() throws Exception {
-    // El usuario "other" es docente en "s1", pero NO es dueño del área "Math" (cuyo dueño es "teacher").
-    // La consulta de avance anual es de solo lectura y debe retornar 200 OK sin lanzar 403 Forbidden.
-    login("other");
-    var response = call("GET", "/api/progress/annual?contextId=s1", null);
-    assertThat(response.statusCode()).isEqualTo(200);
-    var json = body(response);
-    assertThat(json.get("topics").size()).isGreaterThan(0);
+  void deniesSyntheticCatalogToTeachersEvenWithAreaOwnership() throws Exception {
+    for (String teacher : new String[] {"teacher", "other"}) {
+      login(teacher);
+      assertThat(call("GET", "/api/progress/annual?contextId=s1", null).statusCode()).isEqualTo(403);
+    }
   }
-
   @Test
   void filtersDoNotAlterGlobalDenominatorOverHttp() throws Exception {
-    login("teacher");
+    login("admin");
     // Filter by area
     var response =
         call("GET", "/api/progress/annual?contextId=s1&areaId=area-aritmetica", null);
@@ -104,7 +102,7 @@ class AnnualProgressApiTest extends PlannerApiTest {
 
   @Test
   void returns404ForNonExistentContext() throws Exception {
-    login("teacher");
+    login("admin");
     var response = call("GET", "/api/progress/annual?contextId=non-existent-ctx", null);
     assertThat(response.statusCode()).isEqualTo(404);
   }
@@ -114,6 +112,6 @@ class AnnualProgressApiTest extends PlannerApiTest {
     // "foreign" pertenece a escuela "s2"; no debe tener acceso a contextos de "s1"
     login("foreign");
     var response = call("GET", "/api/progress/annual?contextId=s1", null);
-    assertThat(response.statusCode()).isEqualTo(404);
+    assertThat(response.statusCode()).isEqualTo(403);
   }
 }

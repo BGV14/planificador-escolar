@@ -117,6 +117,8 @@ public class ExportService {
 
   public Map<String, Object> backup(
       PlannerPrincipal user, String contextId, String areaId, Integer month, String format) {
+    if ((format.equals("full") || format.equals("full-v4")) && !user.admin())
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Complete backups require administration");
     if (month != null) checkMonth(month);
     var context = planner.plan(user, contextId);
     var school = school(planner.me(user));
@@ -171,6 +173,11 @@ public class ExportService {
       result.put("blocks", planner.list(user, contextId, "calendar_blocks"));
       return result;
     }
+    if (!Objects.equals(context.get("section"), "UNICA"))
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Legacy v2 exports cannot represent sections; use full-v4"
+              + " (export only, restoration is not supported)");
     if (!Objects.equals(context.get("level"), "PRIMARY")
         || ((Number) context.get("stageValue")).intValue() != 6)
       throw new ResponseStatusException(

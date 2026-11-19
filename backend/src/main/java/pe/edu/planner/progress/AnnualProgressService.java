@@ -2,6 +2,7 @@ package pe.edu.planner.progress;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import pe.edu.planner.planning.AcademicContext;
  */
 @Service
 @Transactional(readOnly = true)
+@Profile("annual-progress-demo")
 public class AnnualProgressService {
 
   private final JdbcTemplate db;
@@ -29,7 +31,7 @@ public class AnnualProgressService {
     if (user == null) {
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required");
     }
-    if (!Set.of("ADMIN", "TEACHER").contains(user.role())) {
+    if (!user.admin()) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied for role: " + user.role());
     }
     if (contextId == null || contextId.isBlank()) {
@@ -37,8 +39,7 @@ public class AnnualProgressService {
     }
 
     // Validar contexto académico para la escuela del usuario autenticado.
-    // La lectura de avance anual es de solo lectura para todo el catálogo de la escuela;
-    // NO exige que el usuario sea "dueño/responsable del área".
+    // El catálogo sintético no representa asignaciones reales; solo administración puede consultarlo.
     var rows =
         db.queryForList(
             "select * from academic_contexts where school_id=? and id=?",
@@ -53,7 +54,8 @@ public class AnnualProgressService {
     String level = contextRow.get("level").toString();
     int stageValue = ((Number) contextRow.get("stage_value")).intValue();
 
-    var academicContext = new AcademicContext(year, level, stageValue);
+    var academicContext =
+        new AcademicContext(year, level, stageValue, contextRow.get("section").toString());
     String displayLabel = academicContext.displayLabel();
 
     // Generación sintética simulando integración T1 (catálogo anual)
@@ -339,4 +341,3 @@ public class AnnualProgressService {
     return list;
   }
 }
-

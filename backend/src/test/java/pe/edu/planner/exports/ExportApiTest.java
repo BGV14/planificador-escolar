@@ -32,6 +32,7 @@ class ExportApiTest {
   void setup() throws Exception {
     for (String table :
         List.of(
+            "classroom_tutors",
             "import_history",
             "planned_sessions",
             "calendar_blocks",
@@ -175,6 +176,8 @@ class ExportApiTest {
 
   @Test
   void fullV3BackupIncludesCustomTopicsWithoutCredentialsOrForeignSchool() throws Exception {
+    db.update("update app_users set role='ADMIN' where id='uone'");
+    login();
     String body =
         new String(
             get("/api/exports/backup?format=full&month=3").body(),
@@ -246,11 +249,13 @@ class ExportApiTest {
         .isEqualTo(404);
     assertThat(get("/api/exports/monthly?contextId=two&month=3&format=pdf").statusCode())
         .isEqualTo(404);
-    assertThat(get("/api/exports/backup?contextId=two&format=full-v4").statusCode()).isEqualTo(404);
+    assertThat(get("/api/exports/backup?contextId=two&format=full-v4").statusCode()).isEqualTo(403);
   }
 
   @Test
   void fullV4SnapshotIncludesEveryContextAndYearWithoutRedefiningV3() throws Exception {
+    db.update("update app_users set role='ADMIN' where id='uone'");
+    login();
     contextFixture("primary2026", 2026, "PRIMARY", 3);
     contextFixture("primary2027", 2027, "PRIMARY", 3);
     contextFixture("secondary", 2028, "SECONDARY", 5);
@@ -283,4 +288,32 @@ class ExportApiTest {
     assertThat(get("/api/exports/monthly?month=3&format=xls").statusCode()).isEqualTo(400);
     assertThat(get("/api/exports/backup?format=html").statusCode()).isEqualTo(400);
   }
+  @Test
+  void sectionSnapshotsAndMonthlyLabelsStayIndependentAndV2RefusesLoss() throws Exception {
+    db.update("update app_users set role='ADMIN' where id='uone'");
+    login();
+    for (String section : List.of("A", "B")) {
+      db.update("insert into academic_contexts(id,school_id,school_year,level,stage_kind,stage_value,section) values(?,'one',2035,'PRIMARY','GRADE',6,?)", section, section);
+      db.update("insert into areas(id,school_id,context_id,name,owner_id,shared_edit) values(?,'one',?,'Math','uone',false)", "area" + section, section);
+      db.update("insert into topics(id,school_id,context_id,area_id,name,unit) values(?,'one',?,?,?,1)", "topic" + section, section, "area" + section, "Only " + section);
+      assertThat(get("/api/exports/backup?contextId=" + section + "&format=json").statusCode()).isEqualTo(400);
+      var pdfResponse = get("/api/exports/monthly?contextId=" + section + "&month=3&format=pdf");
+      assertThat(pdfResponse.statusCode()).isEqualTo(200);
+      try (var pdf = org.apache.pdfbox.Loader.loadPDF(pdfResponse.body())) {
+        assertThat(new org.apache.pdfbox.text.PDFTextStripper().getText(pdf)).contains("Sección " + section, "Only " + section);
+      }
+    }
+    var snapshot = json.readTree(get("/api/exports/backup?contextId=B&format=full-v4").body());
+    assertThat(snapshot.get("restoreSupported").asBoolean()).isFalse();
+    for (var entry : snapshot.get("contexts")) {
+      String id = entry.get("context").get("id").asText();
+      if (id.equals("A") || id.equals("B")) {
+        assertThat(entry.get("context").get("section").asText()).isEqualTo(id);
+        assertThat(entry.get("topics").size()).isEqualTo(1);
+        assertThat(entry.get("topics").get(0).get("name").asText()).isEqualTo("Only " + id);
+      }
+    }
+    assertThat(get("/api/exports/backup?contextId=one&format=json").statusCode()).isEqualTo(200);
+  }
+
 }

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AnnualProgress } from "../components/AnnualProgress";
@@ -327,3 +327,37 @@ describe("AnnualProgress Component", () => {
     expect(api.refreshCsrf).toHaveBeenCalled();
   });
 });
+
+for (const outcome of ["success", "error"] as const) {
+  it(
+    "ignores late demo reload " + outcome + " after changing context",
+    async () => {
+      vi.clearAllMocks();
+      let resolve!: (value: AnnualProgressData) => void;
+      let reject!: (reason: Error) => void;
+      const oldReload = new Promise<AnnualProgressData>((yes, no) => {
+        resolve = yes;
+        reject = no;
+      });
+      vi.mocked(api.get)
+        .mockRejectedValueOnce(new ApiError(403, {}))
+        .mockReturnValueOnce(oldReload)
+        .mockResolvedValue(mockContextBData);
+      const { rerender } = render(<AnnualProgress contextId="ctx-a" />);
+      await screen.findByRole("alert");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Recargar datos" }),
+      );
+      await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+      rerender(<AnnualProgress contextId="ctx-b" />);
+      await screen.findByText(/2027 · Secundaria/);
+      await act(async () => {
+        if (outcome === "success") resolve(mockContextAData);
+        else reject(new ApiError(403, {}));
+      });
+      expect(screen.getByText(/2027 · Secundaria/)).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText(/2026 · Primaria/)).not.toBeInTheDocument();
+    },
+  );
+}

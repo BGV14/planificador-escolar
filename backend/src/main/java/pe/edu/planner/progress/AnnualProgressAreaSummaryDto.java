@@ -8,4 +8,3 @@ public record AnnualProgressAreaSummaryDto(
     int plannedPending,
     int unplanned
 ) {}
-

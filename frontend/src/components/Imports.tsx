@@ -122,6 +122,13 @@ export function Imports({
             </p>
           </div>
         </div>
+        <p className="mb-3 text-sm font-semibold">
+          Destino: {data.plan.displayLabel}
+        </p>
+        <p className="mb-4 text-sm text-amber-900">
+          Los archivos heredados no identifican secciones. Revisa el aula de
+          destino antes de confirmar; solo se modifica este plan.
+        </p>
         <div className="space-y-4">
           {error && <ErrorNotice message={error} />}
           <label className="block rounded-xl border-2 border-dashed border-slate-200 p-5">

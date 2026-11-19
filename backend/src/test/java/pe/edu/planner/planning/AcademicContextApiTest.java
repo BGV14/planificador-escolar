@@ -199,4 +199,80 @@ class AcademicContextApiTest extends PlannerApiTest {
     assertThat(call("POST", "/api/imports/preview" + selected, "{\"json\":\"{}\"}").statusCode())
         .isEqualTo(404);
   }
+  @Test
+  void createsCanonicalIndependentSectionsAndRejectsInvalidNames() throws Exception {
+    String a = section("A");
+    String b = section(" b ");
+    assertThat(a).isNotEqualTo(b);
+    assertThat(body(call("GET", "/api/plan?contextId=" + b, null)).get("section").asText()).isEqualTo("B");
+    assertThat(body(call("GET", "/api/plan?contextId=" + b, null)).get("displayLabel").asText()).contains("Sección B");
+    assertThat(call("POST", "/api/contexts", sectionBody(" a ")).statusCode()).isEqualTo(409);
+    for (String invalid : java.util.List.of("", " ", "1", "Á", "A-B", "ABCDEFGHIJKLMNOPQ"))
+      assertThat(call("POST", "/api/contexts", sectionBody(invalid)).statusCode()).isEqualTo(400);
+    String selected = "?contextId=" + b;
+    assertThat(call("PUT", "/api/topics/" + topic + selected,
+        json.writeValueAsString(Map.of("areaId", area, "name", "Forged", "unit", 1))).statusCode()).isEqualTo(404);
+    assertThat(call("POST", "/api/sessions" + selected, sessionBody(0, "2035-03-02")).statusCode()).isEqualTo(404);
+    assertThat(body(call("GET", "/api/topics?contextId=" + a, null)).size()).isZero();
+    assertThat(body(call("GET", "/api/plan?contextId=" + a, null)).get("revision").asLong()).isZero();
+  }
+
+  @Test
+  void legacyImportsOnlyWriteTheExplicitSection() throws Exception {
+    String a = section("A"), b = section("B");
+    for (String id : java.util.List.of(a, b)) {
+      var newArea = body(call("POST", "/api/areas?contextId=" + id,
+          "{\"name\":\"Math\",\"ownerId\":\"teacher\",\"sharedEdit\":false}"));
+      assertThat(call("POST", "/api/topics?contextId=" + id, json.writeValueAsString(Map.of(
+          "areaId", newArea.get("id").asText(), "name", "Sets", "unit", 1, "legacyId", "Math|1|0"))).statusCode()).isEqualTo(200);
+    }
+    var aTopic = body(call("GET", "/api/topics?contextId=" + a, null)).get(0);
+    var bTopic = body(call("GET", "/api/topics?contextId=" + b, null)).get(0);
+    topic = aTopic.get("id").asText();
+    assertThat(call("POST", "/api/sessions?contextId=" + b,
+        sessionBody(0, "2035-03-02")).statusCode()).isEqualTo(404);
+    assertThat(call("PUT", "/api/topics/" + bTopic.get("id").asText() + "?contextId=" + b,
+        json.writeValueAsString(Map.of("areaId", aTopic.get("areaId").asText(),
+            "name", "Forged", "unit", 1))).statusCode()).isEqualTo(404);
+    var before = body(call("GET", "/api/plan?contextId=" + a, null));
+    for (String payload : java.util.List.of(
+        "{\"notes\":{\"Math|1|0\":\"section B only\"}}",
+        "{\"version\":2,\"year\":2035,\"grade\":6,\"state\":{\"status\":{\"Math|1|0\":\"Trabajado\"}}}")) {
+      var preview = body(call("POST", "/api/imports/preview?contextId=" + b, json.writeValueAsString(Map.of("json", payload))));
+      assertThat(call("POST", "/api/imports/confirm?contextId=" + b, json.writeValueAsString(Map.of(
+          "json", payload, "revision", preview.get("revision").asLong(), "acknowledgeIncomingWins", true))).statusCode()).isEqualTo(200);
+    }
+    assertThat(body(call("GET", "/api/plan?contextId=" + a, null))).isEqualTo(before);
+    assertThat(body(call("GET", "/api/imports?contextId=" + a, null)).size()).isZero();
+    assertThat(body(call("GET", "/api/imports?contextId=" + b, null)).size()).isEqualTo(2);
+    assertThat(call("GET", "/api/plan?contextId=" + b, null).body()).contains("section B only", "Trabajado");
+  }
+
+  @Test
+  void concurrentCanonicalDuplicatesHaveOnlyOneWinner() throws Exception {
+    try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      var start = new java.util.concurrent.CountDownLatch(1);
+      var tasks = new java.util.ArrayList<java.util.concurrent.Future<Integer>>();
+      for (String value : java.util.List.of("C", " c ")) {
+        tasks.add(pool.submit(() -> {
+          start.await();
+          return call("POST", "/api/contexts", sectionBody(value)).statusCode();
+        }));
+      }
+      start.countDown();
+      assertThat(java.util.List.of(tasks.get(0).get(), tasks.get(1).get()))
+          .containsExactlyInAnyOrder(200, 409);
+    }
+  }
+
+  String sectionBody(String section) throws Exception {
+    return json.writeValueAsString(Map.of("year", 2035, "level", "PRIMARY", "stageValue", 6, "section", section));
+  }
+
+  String section(String section) throws Exception {
+    var response = call("POST", "/api/contexts", sectionBody(section));
+    assertThat(response.statusCode()).isEqualTo(200);
+    return body(response).get("id").asText();
+  }
+
 }
